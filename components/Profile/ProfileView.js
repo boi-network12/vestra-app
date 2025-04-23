@@ -2,6 +2,7 @@ import { StyleSheet, View, Text, TouchableOpacity, Image, Linking } from 'react-
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import EditProfile from './EditProfile';
+import { heightPercentageToDP as hp } from "react-native-responsive-screen"
 
 const ProfileView = ({ user, colors, showPosts, toggleSection, updateProfile }) => {
     const [isModalVisible, setIsModalVisible] = useState(false);
@@ -81,7 +82,7 @@ const ProfileView = ({ user, colors, showPosts, toggleSection, updateProfile }) 
                 {/* Website icon (you could replace this with actual favicon fetching later) */}
                 <Image 
                 source={{ uri: `https://www.google.com/s2/favicons?domain=${user.link.replace(/(^\w+:|^)\/\//, '')}` }}
-                style={{ width: 16, height: 16 }}
+                style={{ width: hp(2.2), height: hp(2.2), borderRadius: hp(0.5) }}
                 />
                 <Text style={[styles.link, { color: colors.primary }]}>
                 {user.link
@@ -97,18 +98,18 @@ const ProfileView = ({ user, colors, showPosts, toggleSection, updateProfile }) 
          <View style={styles.detailsContainer}>
            <View style={styles.detailItem}>
              <Ionicons name="location-outline" size={16} color={colors.subText} />
-             <Text style={[styles.detailText, { color: colors.subText }]}>{user.country}</Text>
+             <Text style={[styles.detailText, { color: colors.subText }]}>{user.country || 'Update your location'}</Text>
            </View>
            
            <View style={styles.detailItem}>
-             <MaterialCommunityIcons name="cake-variant-outline" size={16} color={colors.subText} />
+             <MaterialCommunityIcons name="cake-variant-outline" size={hp(2)} color={colors.subText} />
              <Text style={[styles.detailText, { color: colors.subText }]}>
                {calculateAge(user.dateOfBirth)} years
              </Text>
            </View>
            
            <View style={styles.detailItem}>
-             <Feather name="calendar" size={16} color={colors.subText} />
+             <Feather name="calendar" size={hp(2)} color={colors.subText} />
              <Text style={[styles.detailText, { color: colors.subText }]}>
                Joined {new Date(user.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
              </Text>
@@ -130,7 +131,7 @@ const ProfileView = ({ user, colors, showPosts, toggleSection, updateProfile }) 
           style={[styles.actionButton2, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}
           onPress={toggleSection}
         >
-          <Text style={styles.actionButtonText}>
+          <Text style={[styles.actionButtonText, { color: colors.subText }]}>
             {showPosts ? "About" : "Posts"}
           </Text>
         </TouchableOpacity>
@@ -138,7 +139,7 @@ const ProfileView = ({ user, colors, showPosts, toggleSection, updateProfile }) 
         <TouchableOpacity 
           style={[styles.actionButton2, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}
         >
-          <Text style={[styles.actionButtonText, { color: colors.text }]}><Ionicons name='qr-code-outline' /></Text>
+          <Text style={[styles.actionButtonText, { color: colors.text }]}><Ionicons name='qr-code-outline' size={hp(2.8)} /></Text>
         </TouchableOpacity>
       </View>
 
@@ -173,16 +174,16 @@ const styles = StyleSheet.create({
   },
   headerContainer: {
     flexDirection: 'row',
-    padding: 20,
+    padding: hp(2),
     alignItems: 'center',
   },
   avatarContainer: {
-    marginRight: 20,
+    marginRight: hp(2.5),
   },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: hp(11),
+    height: hp(11),
+    borderRadius: hp(5.5),
   },
   avatarPlaceholder: {
     width: 80,
@@ -205,15 +206,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statNumber: {
-    fontSize: 18,
+    fontSize: hp(2.8),
     fontWeight: 'bold',
   },
   statLabel: {
-    fontSize: 14,
+    fontSize: hp(1.7),
   },
   infoContainer: {
-    padding: 20,
-    marginHorizontal: 15,
+    padding: hp(2.2),
+    marginHorizontal: hp(2),
     borderRadius: 15,
     marginTop: 10,
   },

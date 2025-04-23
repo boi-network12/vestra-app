@@ -13,13 +13,11 @@ export default function TabsLayout() {
       tabBar={(props) => <CustomTabs {...props} colors={colors}/>}
       screenOptions={{
         headerShown: false,
+        tabBarStyle: {
+          display: 'none',
+        }
       }}
     >
-      <Tabs.Screen name="feed" />
-      <Tabs.Screen name="jobs/index" />
-      <Tabs.Screen name="chats" />
-      <Tabs.Screen name="search" />
-      <Tabs.Screen name="users" />
     </Tabs>
   );
 }

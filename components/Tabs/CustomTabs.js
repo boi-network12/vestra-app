@@ -23,8 +23,8 @@ const CustomTabs = ({ state, colors }) => {
     {
       name: 'chats',
       title: 'Chats',
-      icon: 'chatbubble-ellipses-outline',
-      activeIcon: 'chatbubble-ellipses',
+      icon: 'mail-outline',
+      activeIcon: 'mail',
     },
     {
       name: 'search',

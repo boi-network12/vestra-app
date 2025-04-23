@@ -12,19 +12,49 @@ export default function EditProfile({ isVisible, onClose, user, colors, updatePr
     const [uploading, setUploading] = useState(false);
     const [linkError, setLinkError] = useState('');
 
+    const uploadImageToCloudinary = async (imageUri) => {
+        const formData = new FormData();
+        formData.append('file', {
+            uri: imageUri,
+            name: `upload_${Date.now()}.jpeg`,
+            type: 'image/jpeg',
+        });
+        formData.append('upload_preset', 'vestra');
+
+        const response = await fetch('https://api.cloudinary.com/v1_1/dypgxulgp/image/upload', {
+            method: 'POST',
+            body: formData,
+        })
+
+        const data = await response.json();
+        if (data.secure_url) {
+            return data.secure_url;
+        } else {
+            throw new Error('Image upload failed');
+        }
+    }
+
 
     const pickImage = async () => {
-        let result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [1, 1],
-            quality: 0.8,
-        });
-
-        if (!result.canceled) {
-            setProfilePicture(result.assets[0].uri);
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          alert('Sorry, we need camera roll permissions to make this work!');
+          return;
         }
-    };
+      
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 1,
+        });
+      
+        if (!result.canceled) {
+          setProfilePicture(result.assets[0].uri);
+        }
+      };
+      
+    
 
     const handleSave = async () => {
         if (link && !validator.isURL(link)) {
@@ -36,9 +66,16 @@ export default function EditProfile({ isVisible, onClose, user, colors, updatePr
     
         try {
             setUploading(true);
+
+            let uploadedImageUrl = profilePicture;
+
+            if (profilePicture &&  profilePicture.startsWith('file://')) {
+                uploadedImageUrl = await uploadImageToCloudinary(profilePicture);
+            }
+
             await updateProfile({
                 bio,
-                profilePicture,
+                profilePicture: uploadedImageUrl,
                 link,
             });
             onClose();

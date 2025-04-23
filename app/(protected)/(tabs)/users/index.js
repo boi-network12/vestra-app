@@ -90,6 +90,11 @@ export default function users() {
 const navigateToProfile = (user) => {
   const status = followStatuses[user._id]?.status || 'not_following';
   const isFollowingYou = followStatuses[user._id]?.isFollowingYou || false;
+
+  if (!user || !user._id) {
+    console.error('navigateToProfile: Invalid user object', user);
+    return;
+  }
   
   let followStatus;
   if (status === 'blocked') {
@@ -102,7 +107,7 @@ const navigateToProfile = (user) => {
     followStatus = 'not_following';
   }
 
-  router.push({
+  router.navigate({
     pathname: 'users-profile',
     params: { 
       user: JSON.stringify(user),

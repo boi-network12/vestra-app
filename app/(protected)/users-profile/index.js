@@ -8,6 +8,7 @@ import ProfileHeader from '../../../components/Headers/ProfileHeader';
 import ProfilePosts from '../../../components/Profile/ProfilePosts';
 import ProfileViewDetail from '../../../components/UsersDetails/ProfileView';
 import { useFollow } from '../../../contexts/FriendContext';
+import { useAuth } from '../../../contexts/AuthContext';
 
 export default function index() {
   const { user, followStatus } = useLocalSearchParams();
@@ -18,6 +19,11 @@ export default function index() {
   const { followUser, unfollowUser, checkFollowStatus } = useFollow();
   const [currentFollowStatus, setCurrentFollowStatus] = useState(followStatus || 'not_following');
   const [refreshing, setRefreshing] = useState(false);
+  const { user: currentUser } = useAuth();
+  if (!currentUser || !currentUser._id) {
+    console.error('Auth user is undefined or missing _id');
+    return null;
+  }
 
 
   // Fetch the actual follow status when the user profile loads or changes
@@ -123,6 +129,7 @@ export default function index() {
               navigation={navigation}
               handleFollowAction={handleFollowAction}
               currentFollowStatus={currentFollowStatus}
+              currentUser={currentUser}
           />
  
             <ProfilePosts

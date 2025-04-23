@@ -1,4 +1,5 @@
 // app/_layout.js
+import "react-native-get-random-values";
 import { Stack } from 'expo-router';
 import { AuthProvider } from '../contexts/AuthContext';
 import "../global.css";

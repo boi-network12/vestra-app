@@ -42,8 +42,10 @@ export function AuthProvider({ children }) {
         if (!response.ok) throw new Error('Auth check failed');
   
         const serverUserData = await response.json();
-        await AsyncStorage.setItem('user', JSON.stringify(serverUserData.data));
-        setUser(serverUserData.data);
+
+        const userWithToken = {...serverUserData.data, token}
+        await AsyncStorage.setItem('user', JSON.stringify(userWithToken));
+        setUser(userWithToken);
       } catch (err) {
         console.error('Auth error:', err);
         setUser(null);
@@ -86,11 +88,15 @@ export function AuthProvider({ children }) {
       if (!data.token) {
         throw new Error('No authentication token received');
       }
+
+      const userWithToken = { ...data.data, token: data.token };
   
-      await AsyncStorage.setItem('token', data.token);
-      await AsyncStorage.setItem('user', JSON.stringify(data.data));
-      
-      setUser(data.data);
+      await Promise.all([
+        AsyncStorage.setItem('token', data.token),
+        AsyncStorage.setItem('user', JSON.stringify(userWithToken))
+      ]);
+
+      setUser(userWithToken);
       return data;
     } catch (err) {
       setError(err.message);
@@ -119,12 +125,13 @@ export function AuthProvider({ children }) {
       }
 
       // Store token and user data atomically
+      const userWithToken = { ...data.data, token: data.token };
       await Promise.all([
         AsyncStorage.setItem('token', data.token),
-        AsyncStorage.setItem('user', JSON.stringify(data.data))
+        AsyncStorage.setItem('user', JSON.stringify(userWithToken))
       ]);
-      
-      setUser(data.data);
+
+      setUser(userWithToken);
       return data;
     } catch (err) {
       setError(err.message);
@@ -157,8 +164,10 @@ export function AuthProvider({ children }) {
       }
       
       // Clear local storage regardless
-      await AsyncStorage.removeItem('token');
-      await AsyncStorage.removeItem('user');
+      await Promise.all([
+        AsyncStorage.removeItem('token'),
+        AsyncStorage.removeItem('user')
+      ]);
       setUser(null);
     } catch (err) {
       console.error('Logout error:', err);
@@ -190,10 +199,12 @@ export function AuthProvider({ children }) {
       }
       
       // Clear local storage
-      await AsyncStorage.removeItem('token');
-      await AsyncStorage.removeItem('user');
+      await Promise.all([
+        AsyncStorage.removeItem('token'),
+        AsyncStorage.removeItem('user')
+      ]);
       setUser(null);
-      
+
       return { success: true, message: 'Logged out from all devices successfully' };
     } catch (err) {
       console.error('Logout all error:', err);
@@ -228,6 +239,8 @@ export function AuthProvider({ children }) {
       // Merge settings properly when updating user
       const updatedUser = { 
         ...user, 
+        ...data.data,
+        token,
         settings: {
           ...user.settings,
           ...data.data.settings
@@ -310,8 +323,9 @@ export function AuthProvider({ children }) {
       }
   
       const data = await response.json();
-      await AsyncStorage.setItem('user', JSON.stringify(data.data));
-      setUser(data.data);
+      const userWithToken = { ...data.data, token };
+      await AsyncStorage.setItem('user', JSON.stringify(userWithToken));
+      setUser(userWithToken);
       return data.data;
     } catch (err) {
       setError(err.message);

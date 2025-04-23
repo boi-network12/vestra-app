@@ -1,8 +1,19 @@
 import { StyleSheet, View, Text, TouchableOpacity, Image, Linking } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import React, { useState } from 'react';
+import { router } from 'expo-router';
 
-const ProfileViewDetail = ({ user, colors, handleFollowAction, currentFollowStatus }) => {
+const ProfileViewDetail = ({ user, colors, handleFollowAction, currentFollowStatus, currentUser }) => {
+
+
+  if (!user || !user._id) {
+    console.error('ProfileViewDetail: Invalid user prop', user);
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <Text style={{ color: colors.text }}>Error: User data is missing</Text>
+      </View>
+    );
+  }
 
   // Calculate age from dateOfBirth
   const calculateAge = (birthDate) => {
@@ -61,8 +72,31 @@ const ProfileViewDetail = ({ user, colors, handleFollowAction, currentFollowStat
   
   const buttonState = getFollowButtonState();
   
-  // Then in your TouchableOpacity:
-  
+  //:
+  const handleMessagePress = () => {
+    if (!currentUser || !currentUser._id) {
+      console.error('Current user is undefined or missing _id');
+      return;
+    }
+
+    if (!user || !user._id) {
+      console.error('Current user is undefined or missing _id');
+      return;
+    }
+
+    console.log('Navigating to chat with:', user.name);
+    
+    const participants  = [user._id, currentUser._id].sort();
+    const chatId = participants.join('_');
+
+    router.navigate({
+      pathname: `(protected)/(tabs)/chats/${chatId}`,
+      params: {
+        chatId,
+        recipient: JSON.stringify(user)
+      }
+    })
+  }  
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -140,7 +174,7 @@ const ProfileViewDetail = ({ user, colors, handleFollowAction, currentFollowStat
          <View style={styles.detailsContainer}>
            <View style={styles.detailItem}>
              <Ionicons name="location-outline" size={16} color={colors.subText} />
-             <Text style={[styles.detailText, { color: colors.subText }]}>{user.country}</Text>
+             <Text style={[styles.detailText, { color: colors.subText }]}>{user.country || "No Detail"}</Text>
            </View>
            
            <View style={styles.detailItem}>
@@ -177,16 +211,17 @@ const ProfileViewDetail = ({ user, colors, handleFollowAction, currentFollowStat
 
         <TouchableOpacity 
           style={[styles.actionButton2, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}
+          onPress={handleMessagePress}
         >
           <Text style={styles.actionButtonText}>
-            <Ionicons name='chatbubble-outline' size={20} color={colors.text} />
+            <Ionicons name='chatbubble-outline' size={20} color={colors.subText} />
           </Text>
         </TouchableOpacity>
         
         <TouchableOpacity 
           style={[styles.actionButton2, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}
         >
-          <Text style={[styles.actionButtonText, { color: colors.text }]}><Ionicons name='qr-code-outline' /></Text>
+          <Text style={[styles.actionButtonText, { color: colors.text }]}><Ionicons name='qr-code-outline' size={20} color={colors.subText} /></Text>
         </TouchableOpacity>
       </View>
     </View>

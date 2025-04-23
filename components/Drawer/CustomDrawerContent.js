@@ -44,7 +44,7 @@ export default function CustomDrawerContent(props) {
           source={{ uri: user?.profilePicture || 'https://i.pravatar.cc/150' }}
           className="w-16 h-16 rounded-full mb-2"
         />
-        <Text className={`text-lg font-bold`}>{user?.name || 'Guest User'}</Text>
+        <Text className={`text-lg font-bold`} style={{ color: colors.text }}>{user?.name || 'Guest User'}</Text>
         <Text className={`text-sm `}
            style={{
             color: colors.subText}}
