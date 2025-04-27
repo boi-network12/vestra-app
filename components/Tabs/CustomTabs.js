@@ -7,6 +7,20 @@ const CustomTabs = ({ state, colors }) => {
   const router = useRouter();
   const activeRouteName = state.routes[state.index].name;
 
+  const hiddenRoutes = [
+    'chats/[chatId]',
+    'chats/Ai',
+  ]
+
+  const shouldHideTabs = hiddenRoutes.some(route => 
+    activeRouteName === route || activeRouteName.startsWith(`${route}/`)
+  )
+
+  if (shouldHideTabs) {
+    return null;
+  }
+
+
   const tabs = [
     {
       name: 'feed',
@@ -87,7 +101,7 @@ const styles = StyleSheet.create({
     // For iOS:
     backdropFilter: 'blur(10px)',
     // For Android (alternative):
-    // backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    // backgroundColor: 'rgba(255, 255, 255, 0.7)',]
   },
   tab: {
     flex: 1,

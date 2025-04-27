@@ -1,4 +1,4 @@
-import { View, Text, SafeAreaView, Platform, StatusBar as RNStatusBar, RefreshControl, FlatList, Button, Image, ActivityIndicator, TouchableOpacity } from 'react-native'
+import { View, Text, SafeAreaView, Platform, StatusBar as RNStatusBar, RefreshControl, FlatList, Button, Image, ActivityIndicator, TouchableOpacity, TextInput } from 'react-native'
 import React, { useEffect, useState } from 'react'
 import { useAuth } from '../../../../contexts/AuthContext'
 import { useTheme } from '../../../../contexts/ThemeContext';
@@ -9,6 +9,8 @@ import { router, useNavigation } from 'expo-router';
 import { ScrollView } from 'react-native';
 import { useFollow } from '../../../../contexts/FriendContext';
 import { StyleSheet } from 'react-native';
+import { heightPercentageToDP as hp, widthPercentageToDP as wp } from "react-native-responsive-screen"
+import { useBlock } from '../../../../contexts/BlockContext';
 
 export default function users() {
   const { user, refreshUser } = useAuth();
@@ -20,32 +22,51 @@ export default function users() {
     unfollowUser,
     checkFollowStatus
   } = useFollow();
-  const [refreshing, setRefreshing] = useState(false);
   const [followStatuses, setFollowStatuses] = useState({});
+  const [refreshing, setRefreshing] = useState(false);
   const { isDark } = useTheme();
   const colors = getThemeColors(isDark);
   const navigation = useNavigation();
-  const [currentFollowStatus, setCurrentFollowStatus] = useState({});
+  const [searchQuery, setSearchQuery] = useState('');
+  const { blockUser, unblockUser, blockedUsers, checkBlockStatus, fetchBlockedUsers, isBlockedByUser } = useBlock();
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [isBlockedByTargetUser, setIsBlockedByTargetUser] = useState(false);
+
+    useEffect(() => {
+      const checkBlockedStatus = async () => {
+        try {
+         
+        } catch (error) {
+          
+        }
+      };
+      checkBlockedStatus();
+    }, [userDetails._id, checkBlockStatus, isBlockedByUser]);
 
   useEffect(() => {
     fetchSuggestedFriends();
   }, []);
 
   useEffect(() => {
-    // Initialize follow statuses when suggestedFriends changes
     const initFollowStatuses = async () => {
-      const statuses = {};
-      for (const friend of suggestedFriends) {
-        const status = await checkFollowStatus(friend._id);
-        statuses[friend._id] = status;
+      try {
+        const statuses = {};
+        for (const friend of suggestedFriends) {
+          if (friend._id) {
+            const status = await checkFollowStatus(friend._id);
+            statuses[friend._id] = status;
+          }
+        }
+        setFollowStatuses(statuses);
+      } catch (error) {
+        console.error('Error initializing follow statuses:', error);
       }
-      setFollowStatuses(statuses);
     };
-    
+  
     if (suggestedFriends.length > 0) {
       initFollowStatuses();
     }
-  }, [suggestedFriends]);
+  }, [suggestedFriends, checkFollowStatus]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -116,7 +137,7 @@ const navigateToProfile = (user) => {
   });
 };
 
-  const renderItem = ({ item }) => {
+  const RenderItem = React.memo(({ item }) => {
     const status = followStatuses[item._id]?.status || 'not_following';
     const isFollowingYou = followStatuses[item._id]?.isFollowingYou || false;
 
@@ -128,7 +149,7 @@ const navigateToProfile = (user) => {
       buttonStyle = { backgroundColor: colors.secondary };
     } else if (isFollowingYou) {
       buttonText = 'Follow Back';
-      buttonStyle = { backgroundColor: colors.tertiary || '#3a86ff' }; // Use a different color for follow back
+      buttonStyle = { backgroundColor: colors.primary || '#3a86ff' }; // Use a different color for follow back
     }
 
     return (
@@ -176,7 +197,12 @@ const navigateToProfile = (user) => {
         </TouchableOpacity>
       </TouchableOpacity>
     )
-};
+});
+
+const filteredFriends = suggestedFriends.filter(friend =>
+  friend.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+  friend.username?.toLowerCase().includes(searchQuery.toLowerCase())
+);
 
   return (
     <SafeAreaView
@@ -193,15 +219,30 @@ const navigateToProfile = (user) => {
         navigation={navigation}
       />
 
+      {/* Search Input */}
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={[styles.searchInput, { 
+            backgroundColor: colors.inputBg,
+            color: colors.text,
+            borderColor: colors.border,
+          }]}
+          placeholder="Search users..."
+          placeholderTextColor={colors.placeholder}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+      </View>
+
       {suggestionsLoading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : (
         <FlatList
-          data={suggestedFriends}
+          data={filteredFriends}
           keyExtractor={(item) => item._id}
-          renderItem={renderItem}
+          renderItem={({ item }) => <RenderItem item={item} />}
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl
@@ -213,7 +254,7 @@ const navigateToProfile = (user) => {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Text style={[styles.emptyText, { color: colors.text }]}>
-                No suggested friends found
+                {searchQuery ? 'No users found' : 'No suggested friends found'}
               </Text>
             </View>
           }
@@ -239,24 +280,24 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: hp(8),
+    height: hp(8),
+    borderRadius: hp(5),
     marginRight: 15,
   },
   avatarContainer: {
     marginRight: 20,
   },
   avatarPlaceholder: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: hp(8),
+    height: hp(8),
+    borderRadius: hp(4),
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 15,
   },
   initials: {
-    fontSize: 30,
+    fontSize: hp(3),
     fontWeight: 'bold',
     color: 'white',
   },
@@ -264,11 +305,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   name: {
-    fontSize: 16,
+    fontSize: hp(2),
     fontWeight: '600',
   },
   username: {
-    fontSize: 14,
+    fontSize: hp(1.6),
     marginTop: 2,
   },
   meta: {
@@ -282,7 +323,7 @@ const styles = StyleSheet.create({
   },
   followButtonText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: hp(1.8),
     fontWeight: '600',
   },
   listContent: {
@@ -302,5 +343,21 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     textAlign: 'center',
+  },
+  searchContainer: {
+    paddingHorizontal: wp(4),
+    paddingVertical: hp(1),
+  },
+  searchInput: {
+    height: hp(5),
+    borderWidth: 1,
+    borderRadius: 25,
+    paddingHorizontal: wp(4),
+    fontSize: hp(2),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
 });

@@ -3,7 +3,7 @@ import React from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-native-responsive-screen'
 
-export default function ChatScreenHeader({colors, user, recipient, navigation, title}) {
+export default function ChatScreenHeader({colors, user, recipient, navigation, title, initiateCall}) {
     
     console.log('Recipient:', recipient.name);
     console.log('User:', user.name);
@@ -51,9 +51,14 @@ export default function ChatScreenHeader({colors, user, recipient, navigation, t
             <Text style={{ color: colors.text, marginLeft: hp(1.8), fontSize: hp(2)}}>{recipient.name || "Anonymous"}</Text>
         </TouchableOpacity>
 
-        <Text style={{ fontSize: hp(1.8), fontWeight: '500', color: colors.text, marginLeft: wp(4) }}>
-            <Ionicons name='chatbubble-ellipses' color={colors.subText} size={hp(2.8)} />
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <TouchableOpacity onPress={() => initiateCall('voice')}>
+          <Ionicons name="call" size={hp(2.5)} color={colors.subText} />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => initiateCall('video')}>
+          <Ionicons name="videocam" size={hp(2.5)} color={colors.subText} />
+        </TouchableOpacity>
+      </View>
     </View>
   )
 }

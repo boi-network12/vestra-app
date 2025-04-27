@@ -139,7 +139,7 @@ const ProfileView = ({ user, colors, showPosts, toggleSection, updateProfile }) 
         <TouchableOpacity 
           style={[styles.actionButton2, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}
         >
-          <Text style={[styles.actionButtonText, { color: colors.text }]}><Ionicons name='qr-code-outline' size={hp(2.8)} /></Text>
+          <Text style={[styles.actionButtonText, { color: colors.text }]}><Ionicons name='qr-code-outline' size={hp(2)} /></Text>
         </TouchableOpacity>
       </View>
 
@@ -186,14 +186,14 @@ const styles = StyleSheet.create({
     borderRadius: hp(5.5),
   },
   avatarPlaceholder: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: hp(10),
+    height: hp(10),
+    borderRadius: hp(5),
     justifyContent: 'center',
     alignItems: 'center',
   },
   initials: {
-    fontSize: 30,
+    fontSize: hp(3.5),
     fontWeight: 'bold',
     color: 'white',
   },
@@ -223,71 +223,71 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   name: {
-    fontSize: 22,
+    fontSize: hp(3),
     fontWeight: 'bold',
-    marginRight: 5,
+    marginRight: hp(1),
   },
   verifiedIcon: {
-    marginLeft: 5,
+    marginLeft: 0,
   },
   username: {
-    fontSize: 16,
-    marginBottom: 10,
+    fontSize: hp(1.8),
+    marginBottom: hp(1),
   },
   bio: {
-    fontSize: 16,
-    marginBottom: 10,
+    fontSize: hp(1.7),
+    marginBottom: hp(1),
   },
   link: {
-    fontSize: 12
+    fontSize: hp(1.2)
   },
   bioPlaceholder: {
-    fontSize: 16,
+    fontSize: hp(1.7),
     marginBottom: 15,
     fontStyle: 'italic',
   },
   detailsContainer: {
-    marginTop: 5,
+    marginTop: hp(1),
   },
   detailItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 3,
+    marginVertical: hp(0.8),
   },
   detailText: {
     marginLeft: 8,
-    fontSize: 14,
+    fontSize: hp(1.5),
   },
   actionsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 15,
-    marginTop: 20,
+    marginTop: hp(2),
     marginBottom: 15,
   },
   actionButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 25,
-    borderRadius: 25,
+    paddingVertical: hp(1),
+    paddingHorizontal: hp(0),
+    borderRadius: hp(10),
     alignItems: 'center',
     justifyContent: 'center',
-    width: '50%',
+    width: hp(22),
   },
   actionButton2: {
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 25,
+    paddingVertical: hp(1.3),
+    paddingHorizontal: hp(0),
+    borderRadius: hp(10),
     alignItems: 'center',
     justifyContent: 'center',
-    width: '20%',
+    width: hp(10),
   },
   actionButtonText: {
     color: 'white',
-    fontWeight: 'bold',
-    fontSize: 16,
+    fontWeight: '500',
+    fontSize: hp(1.8),
   },
   section: {
-    padding: 15,
+    padding: hp(1.8),
     marginHorizontal: 15,
     borderRadius: 15,
     marginBottom: 15,
@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
   },
   aboutText: {
     marginLeft: 15,
-    fontSize: 16,
+    fontSize: hp(1.8),
   },
   settingItem: {
     flexDirection: 'row',
@@ -323,3 +323,4 @@ const styles = StyleSheet.create({
 });
 
 export default ProfileView;
+// currentUser profile view

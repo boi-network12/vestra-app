@@ -1,7 +1,8 @@
-import { StyleSheet, View, Text, TouchableOpacity, Image, Linking } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Image, Linking, Alert } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import { router } from 'expo-router';
+import { heightPercentageToDP as hp, widthPercentageToDP as wp } from "react-native-responsive-screen"
 
 const ProfileViewDetail = ({ user, colors, handleFollowAction, currentFollowStatus, currentUser }) => {
 
@@ -28,6 +29,8 @@ const ProfileViewDetail = ({ user, colors, handleFollowAction, currentFollowStat
     
     return age;
   };
+
+  
 
   const getFollowButtonState = () => {
     if (currentFollowStatus === 'blocked') {
@@ -234,26 +237,26 @@ const styles = StyleSheet.create({
   },
   headerContainer: {
     flexDirection: 'row',
-    padding: 20,
+    padding: hp(2.5),
     alignItems: 'center',
   },
   avatarContainer: {
-    marginRight: 20,
+    marginRight: hp(2.5),
   },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: hp(11),
+    height: hp(11),
+    borderRadius: hp(5.5),
   },
   avatarPlaceholder: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: hp(10),
+    height: hp(10),
+    borderRadius: hp(5),
     justifyContent: 'center',
     alignItems: 'center',
   },
   initials: {
-    fontSize: 30,
+    fontSize: hp(3.5),
     fontWeight: 'bold',
     color: 'white',
   },
@@ -266,15 +269,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statNumber: {
-    fontSize: 18,
+    fontSize: hp(2.8),
     fontWeight: 'bold',
   },
   statLabel: {
-    fontSize: 14,
+    fontSize: hp(1.7),
   },
   infoContainer: {
-    padding: 20,
-    marginHorizontal: 15,
+    padding: hp(2.6),
+    marginHorizontal: hp(2),
     borderRadius: 15,
     marginTop: 10,
   },
@@ -283,72 +286,71 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   name: {
-    fontSize: 22,
+    fontSize: hp(3),
     fontWeight: 'bold',
-    marginRight: 5,
+    marginRight: hp(1),
   },
   verifiedIcon: {
-    marginLeft: 5,
+    marginLeft: 0,
   },
   username: {
-    fontSize: 16,
-    marginBottom: 10,
+    fontSize: hp(1.8),
+    marginBottom: hp(1),
   },
   bio: {
-    fontSize: 16,
-    marginBottom: 10,
+    fontSize: hp(1.7),
+    marginBottom: hp(1),
   },
   link: {
-    fontSize: 12
+    fontSize: hp(1.2)
   },
   bioPlaceholder: {
-    fontSize: 16,
+    fontSize: hp(1.7),
     marginBottom: 15,
     fontStyle: 'italic',
   },
   detailsContainer: {
-    marginTop: 5,
+    marginTop: hp(1),
   },
   detailItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 3,
+    marginVertical: hp(0.8),
   },
   detailText: {
     marginLeft: 8,
-    fontSize: 14,
+    fontSize: hp(1.5),
   },
   actionsContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 15,
-    marginTop: 20,
+    marginTop: hp(2),
     marginBottom: 15,
   },
   actionButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 25,
-    borderRadius: 25,
+    paddingVertical: hp(1),
+    paddingHorizontal: hp(0),
+    borderRadius: hp(10),
     alignItems: 'center',
     justifyContent: 'center',
-    width: '50%',
+    width: hp(22),
   },
   actionButton2: {
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 25,
+    paddingVertical: hp(1.3),
+    paddingHorizontal: hp(0),
+    borderRadius: hp(10),
     alignItems: 'center',
     justifyContent: 'center',
-    width: '20%',
+    width: hp(10),
   },
   actionButtonText: {
     color: 'white',
-    fontWeight: 'bold',
-    fontSize: 16,
+    fontWeight: '500',
+    fontSize: hp(1.8),
   },
   section: {
-    padding: 15,
+    padding: hp(1.8),
     marginHorizontal: 15,
     borderRadius: 15,
     marginBottom: 15,
@@ -365,7 +367,7 @@ const styles = StyleSheet.create({
   },
   aboutText: {
     marginLeft: 15,
-    fontSize: 16,
+    fontSize: hp(1.8),
   },
   settingItem: {
     flexDirection: 'row',
@@ -384,3 +386,4 @@ const styles = StyleSheet.create({
 });
 
 export default ProfileViewDetail;
+// other user profile view

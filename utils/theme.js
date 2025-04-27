@@ -27,3 +27,4 @@ export const darkColors = {
 };
 
 export const getThemeColors = (isDark) => (isDark ? darkColors : lightColors);
+// utils/theme.js

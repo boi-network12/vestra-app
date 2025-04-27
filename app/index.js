@@ -1,9 +1,23 @@
 import { Redirect } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { StyleSheet, View, ActivityIndicator, Text } from 'react-native';
+import { useEffect, useState } from 'react';
+import SplashScreen from './splash';
 
 export default function Index() {
   const { user, loading } = useAuth();
+  const [showSplash, setShowSplash] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowSplash(false);
+    }, 3000)
+    return () => clearTimeout(timer);
+  },[])
+
+  if (showSplash) {
+    return <SplashScreen onFinish={() => setShowSplash(false)} />;
+  }
 
   if (loading) {
     return (

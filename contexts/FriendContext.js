@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import config from '../config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -94,7 +94,7 @@ const fetchFollowing = async () => {
 };
 
  // Update the followUser and unfollowUser functions to return more data
- const followUser = async (userId) => {
+ const followUser = useCallback(async (userId) => {
   try {
     const data = await makeAuthenticatedRequest('/api/friends', 'POST', { userId });
     await Promise.all([fetchFollowers(), fetchFollowing()]);
@@ -103,9 +103,9 @@ const fetchFollowing = async () => {
     console.error('Failed to follow user:', err);
     return { success: false, error: err.message };
   }
-};
+}, [makeAuthenticatedRequest, fetchFollowers, fetchFollowing]);
 
-const unfollowUser = async (userId) => {
+const unfollowUser = useCallback(async (userId) => {
   try {
     const data = await makeAuthenticatedRequest(`/api/friends/${userId}`, 'DELETE');
     await Promise.all([fetchFollowers(), fetchFollowing()]);
@@ -114,7 +114,7 @@ const unfollowUser = async (userId) => {
     console.error('Failed to unfollow user:', err);
     return { success: false, error: err.message };
   }
-};
+}, [makeAuthenticatedRequest, fetchFollowers, fetchFollowing]);
 
 // Update checkFollowStatus to be more reliable
 const checkFollowStatus = async (userId) => {
