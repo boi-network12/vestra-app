@@ -10,6 +10,7 @@ export const lightColors = {
   icon: '#657786',           // Light mode icon color
   errorBg: '#FBEAE9',        // Light error background
   errorText: '#E0245E',      // Light error text
+  modalBg: 'rgba(0, 0, 0, 0.3)', 
 };
 
 export const darkColors = {
@@ -24,6 +25,7 @@ export const darkColors = {
   icon: '#6E767D',           // Dark mode icon color
   errorBg: '#2C0B0E',        // Dark error background
   errorText: '#F4212E',      // Dark error text
+  modalBg: 'rgba(0, 0, 0, 0.7)',
 };
 
 export const getThemeColors = (isDark) => (isDark ? darkColors : lightColors);

@@ -50,11 +50,13 @@ export function PostProvider({ children }) {
       // Handle media uploads
       if (postData.media && postData.media.length > 0) {
         postData.media.forEach((media, index) => {
-          console.log('Appending media:', media.uri, media.type);
+          const ext = media.mimeType.split('/')[1] === 'quicktime' ? 'mov' : 
+                      media.mimeType.split('/')[1] === 'webp' ? 'webp' : 
+                      media.mimeType.split('/')[1];
           formData.append('media', {
             uri: media.uri,
-            name: `media_${index}.${media.type === 'image' ? 'jpg' : 'mp4'}`,
-            type: `${media.type}/${media.type === 'image' ? 'jpeg' : 'mp4'}`
+            name: `media_${index}.${ext}`,
+            type: media.mimeType,
           });
         });
       }

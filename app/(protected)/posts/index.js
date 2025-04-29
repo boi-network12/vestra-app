@@ -98,6 +98,19 @@ export default function Posts() {
       return;
     }
 
+    if (media.length > 4) {
+      Alert.alert('Error', 'You can upload a maximum of 4 media files.');
+      setLoading(false);
+      return;
+    }
+
+    const videoCount = media.filter(m => m.type === 'video').length;
+    if (videoCount > 2) {
+      Alert.alert('Error', 'You can upload a maximum of 2 video files.');
+      setLoading(false);
+      return;
+    }
+
     try {
       const postData = {
         content: content.trim(),
@@ -144,6 +157,7 @@ export default function Posts() {
     }
   };
 
+
   const pickImage = async () => {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -154,20 +168,53 @@ export default function Posts() {
   
       let result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.All,
-        allowsEditing: true,
-        aspect: [4, 3],
+        allowsEditing: false,
         quality: 1,
         allowsMultipleSelection: true,
       });
   
       if (!result.canceled) {
         const MAX_SIZE_BYTES = 12 * 1024 * 1024; // 12MB
+        const MAX_FILES = 4;
+        const MAX_VIDEOS = 2;
         const newMedia = [];
+        let videoCount = media.filter(m => m.type === 'video').length;
   
         for (const asset of result.assets) {
-          console.log(`Processing asset: ${asset.uri}, type: ${asset.type}, size: ${asset.fileSize || 'unknown'}`);
-          const fileInfo = await FileSystem.getInfoAsync(asset.uri);
+          console.log(`Processing asset: ${asset.uri}, type: ${asset.type}, mimeType: ${asset.mimeType}, size: ${asset.fileSize || 'unknown'}`);
   
+          // Check total file limit
+          if (media.length + newMedia.length >= MAX_FILES) {
+            Alert.alert('Error', 'You can upload a maximum of 4 media files.');
+            break;
+          }
+  
+          // Check video limit
+          if (asset.type === 'video' && videoCount >= MAX_VIDEOS) {
+            Alert.alert('Error', 'You can upload a maximum of 2 video files.');
+            continue;
+          }
+  
+          // Validate MIME type
+          const allowedTypes = [
+            'image/jpeg',
+            'image/png',
+            'image/gif',
+            'image/webp', // Add WebP
+            'video/mp4',
+            'video/quicktime',
+            'video/webm', // Optional
+            'video/x-msvideo', // Optional
+            'video/x-matroska' // Optional
+          ];
+          if (!asset.mimeType || !allowedTypes.includes(asset.mimeType)) {
+            console.warn(`Invalid MIME type: ${asset.uri}, mimeType: ${asset.mimeType || 'unknown'}`);
+            Alert.alert('Error', `File ${asset.uri} has an unsupported format. Use JPEG, PNG, GIF, WebP, MP4, MOV, WebM, AVI, or MKV.`);
+            continue;
+          }
+  
+          // Check file size
+          const fileInfo = await FileSystem.getInfoAsync(asset.uri);
           if (!fileInfo.exists) {
             console.warn(`File does not exist: ${asset.uri}`);
             Alert.alert('Error', `File ${asset.uri} is invalid or inaccessible.`);
@@ -180,11 +227,23 @@ export default function Posts() {
             continue;
           }
   
-          // Validate file type
-          const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'video/mp4', 'video/quicktime'];
-          if (!allowedTypes.includes(asset.mimeType)) {
-            console.warn(`Invalid file type: ${asset.uri}, mimeType: ${asset.mimeType}`);
-            Alert.alert('Error', `File ${asset.uri} has an unsupported format.`);
+          // Ensure file extension matches MIME type
+          const ext = asset.uri.split('.').pop().toLowerCase();
+          const expectedExt = {
+            'image/jpeg': ['jpg', 'jpeg'],
+            'image/png': ['png'],
+            'image/gif': ['gif'],
+            'image/webp': ['webp'],
+            'video/mp4': ['mp4'],
+            'video/quicktime': ['mov'],
+            'video/webm': ['webm'],
+            'video/x-msvideo': ['avi'],
+            'video/x-matroska': ['mkv'],
+          }[asset.mimeType];
+  
+          if (!expectedExt || !expectedExt.includes(ext)) {
+            console.warn(`Mismatched extension: ${asset.uri}, mimeType: ${asset.mimeType}, ext: ${ext}`);
+            Alert.alert('Error', `File extension for ${asset.uri} does not match its format.`);
             continue;
           }
   
@@ -196,10 +255,14 @@ export default function Posts() {
             width: asset.width,
             height: asset.height,
           });
+  
+          if (asset.type === 'video') {
+            videoCount++;
+          }
         }
   
         if (newMedia.length === 0 && result.assets.length > 0) {
-          Alert.alert('Error', 'No valid files were selected. All files were either too large or invalid.');
+          Alert.alert('Error', 'No valid files were selected. All files were either too large, invalid, or had mismatched formats.');
         } else {
           setMedia([...media, ...newMedia]);
           console.log(`Total media files: ${[...media, ...newMedia].length}`);

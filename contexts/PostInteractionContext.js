@@ -279,10 +279,36 @@ export function PostInteractionProvider({ children }) {
     }
   };
 
+  const quotePost = async (postId, formData) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const response = await axios.post(
+        `${config.API_URL}/api/post/${postId}/quote`,
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+
+      return response.data;
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to quote post');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Clear error
   const clearError = () => {
     setError(null);
   };
+
 
   return (
     <PostInteractionContext.Provider
@@ -301,6 +327,7 @@ export function PostInteractionProvider({ children }) {
         incrementViewCount,
         clearError,
         unrepostPost,
+        quotePost,
       }}
     >
       {children}

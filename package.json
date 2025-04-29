@@ -89,7 +89,8 @@
     "tailwindcss-react-native": "^1.7.10",
     "twrnc": "^4.6.1",
     "uuid": "^11.1.0",
-    "validator": "^13.15.0"
+    "validator": "^13.15.0",
+    "expo-clipboard": "~7.0.1"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

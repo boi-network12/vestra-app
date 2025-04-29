@@ -6,8 +6,16 @@ import { heightPercentageToDP as hp, widthPercentageToDP as wp } from "react-nat
 import Icon from 'react-native-vector-icons/Ionicons'; 
 import { Alert } from 'react-native';
 import ActionModal from '../SharedComponents/ActionModal';
+import ShareModal from '../../modal/ShareModal';
+import RepostModal from '../../modal/RepostModal';
 
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
+
+const VideoPlaceholder = ({ uri }) => (
+  <View style={styles.videoContainer}>
+    <Text style={styles.videoPlaceholderText}>Video: {uri}</Text>
+  </View>
+);
 
 export default function Posts({ 
     filter,
@@ -39,6 +47,9 @@ export default function Posts({
   const [modalVisible, setModalVisible] = useState(false);
   const [shareModalVisible, setShareModalVisible] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
+  const [selectedPostForShare, setSelectedPostForShare] = useState(null);
+  const [repostModalVisible, setRepostModalVisible] = useState(false);
+
 
 
   useEffect(() => {
@@ -52,6 +63,12 @@ export default function Posts({
       console.warn('Duplicate post IDs detected:', ids);
     }
   }, [posts]);
+
+  // Add this function
+const handleSharePress = (post) => {
+  setSelectedPostForShare(post);
+  setShareModalVisible(true);
+};
   
   const handleBookmark = async (postId, isBookmarked) => {
     try {
@@ -213,6 +230,49 @@ export default function Posts({
     }
   };
 
+  const hasReposted = (post) => {
+    return posts.some(
+      p => p.repost?._id === post._id && p.user._id === user._id && !p.isDeleted
+    );
+  };
+
+  const handleRepostToggle = async (postId) => {
+    const post = posts.find(p => p._id === postId);
+    const isReposted = hasReposted(post);
+    
+    try {
+      if (isReposted) {
+        await unrepostPost(postId);
+        setPosts(prevPosts => prevPosts.filter(
+          p => !(p.repost?._id === postId && p.user._id === user._id)
+        ));
+        setPosts(prevPosts =>
+          prevPosts.map(p =>
+            p._id === postId
+              ? { ...p, repostCount: Math.max(0, (p.repostCount || 0) - 1) }
+              : p
+          )
+        );
+        Alert.alert('Success', 'Repost removed successfully');
+      } else {
+        const repostData = { content: '', visibility: 'public' };
+        const response = await repostPost(postId, repostData);
+        addRepost(response.data);
+        setPosts(prevPosts =>
+          prevPosts.map(p =>
+            p._id === postId
+              ? { ...p, repostCount: (p.repostCount || 0) + 1 }
+              : p
+          )
+        );
+        Alert.alert('Success', 'Post reposted successfully');
+      }
+    } catch (err) {
+      console.error(isReposted ? 'Unrepost error:' : 'Repost error:', err);
+      Alert.alert('Error', isReposted ? 'Failed to unrepost' : 'Failed to repost');
+    }
+  };
+
   const navigateToPostView = (item) => {
     incrementViewCount(item._id)
     .then(() => {
@@ -255,6 +315,87 @@ export default function Posts({
     });
   };
 
+  // New renderMedia function to handle multiple media items
+  const renderMedia = (mediaItems) => {
+    if (!mediaItems || mediaItems.length === 0) return null;
+  
+    const images = mediaItems.filter(item => item.type === 'image' || item.url.match(/\.(jpg|jpeg|png|gif)$/i));
+    const videos = mediaItems.filter(item => item.type === 'video' || item.url.match(/\.(mp4|mov)$/i));
+  
+    // Twitter-like image grid logic
+    const renderImageGrid = () => {
+      if (images.length === 1) {
+        return (
+          <Image
+            source={{ uri: images[0].url }}
+            style={styles.singleImage}
+            resizeMode="cover"
+          />
+        );
+      } else if (images.length === 2) {
+        return (
+          <View style={styles.twoImageContainer}>
+            {images.map((item, index) => (
+              <Image
+                key={index}
+                source={{ uri: item.url }}
+                style={styles.twoImage}
+                resizeMode="cover"
+              />
+            ))}
+          </View>
+        );
+      } else if (images.length === 3) {
+        return (
+          <View style={styles.threeImageContainer}>
+            <Image
+              source={{ uri: images[0].url }}
+              style={styles.threeImageLeft}
+              resizeMode="cover"
+            />
+            <View style={styles.threeImageRightContainer}>
+              {images.slice(1, 3).map((item, index) => (
+                <Image
+                  key={index}
+                  source={{ uri: item.url }}
+                  style={styles.threeImageRight}
+                  resizeMode="cover"
+                />
+              ))}
+            </View>
+          </View>
+        );
+      } else if (images.length >= 4) {
+        return (
+          <View style={styles.fourImageContainer}>
+            {images.slice(0, 4).map((item, index) => (
+              <Image
+                key={index}
+                source={{ uri: item.url }}
+                style={styles.fourImage}
+                resizeMode="cover"
+              />
+            ))}
+          </View>
+        );
+      }
+    };
+  
+    return (
+      <View style={styles.mediaContainer}>
+        {images.length > 0 && renderImageGrid()}
+        {videos.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.videoScroll}>
+            {videos.map((item, index) => (
+              <VideoPlaceholder key={index} uri={item.url} style={styles.video} />
+            ))}
+          </ScrollView>
+        )}
+      </View>
+    );
+  };
+  
+
   const renderPost = ({ item }) => (
     <TouchableOpacity
       style={[styles.postContainer, { backgroundColor: colors.card }]}
@@ -288,32 +429,28 @@ export default function Posts({
         </View>
       </View>
 
-      {item.repost  && item.repost.user ? (
-        <View style={[styles.repostContainer, { borderLeftColor: colors.primary }]}>
-          <Text style={[styles.repostLabel, { color: colors.subText }]}>
-            Reposted from {item.repost.user.username || 'Unknown User'}
-          </Text>
-          <Text style={[styles.content, { color: colors.text }]}>{item.repost.content || ''}</Text>
-          {item.repost.media.length > 0 && (
-            <Image
-              source={{ uri: item.repost.media[0].url }}
-              style={styles.repostMedia}
-              resizeMode="cover"
-            />
-          )}
-        </View>
-      ) : (
-        <>
-          <Text style={[styles.content, { color: colors.text }]}>{item.content}</Text>
-          {item.media.length > 0 && (
-            <Image
-              source={{ uri: item.media[0].url }}
-              style={styles.media}
-              resizeMode="cover"
-            />
-          )}
-        </>
-      )}
+      {item.quote && item.quote.user ? (
+      <View style={[styles.quoteContainer, { borderLeftColor: colors.primary }]}>
+        <Text style={[styles.quoteLabel, { color: colors.subText }]}>
+          Quoted from @{item.quote.user.username || 'Unknown User'}
+        </Text>
+        <Text style={[styles.content, { color: colors.text }]}>{item.quote.content || ''}</Text>
+        {renderMedia(item.quote.media)}
+      </View>
+    ) : item.repost && item.repost.user ? (
+      <View style={[styles.repostContainer, { borderLeftColor: colors.primary }]}>
+        <Text style={[styles.repostLabel, { color: colors.subText }]}>
+          Reposted from @{item.repost.user.username || 'Unknown User'}
+        </Text>
+        <Text style={[styles.content, { color: colors.text }]}>{item.repost.content || ''}</Text>
+        {renderMedia(item.repost.media)}
+      </View>
+    ) : (
+      <>
+        <Text style={[styles.content, { color: colors.text }]}>{item.content}</Text>
+        {renderMedia(item.media)}
+      </>
+    )}
 
       <View style={styles.interactionBar}>
         <TouchableOpacity
@@ -331,7 +468,10 @@ export default function Posts({
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.interactionButton}
-          onPress={() => handleRepost(item._id)}
+          onPress={() => {
+            setSelectedPostForShare(item);
+            setRepostModalVisible(true);
+          }}
         >
           <Icon name="repeat-outline" size={wp(5)} color={colors.icon} />
           <Text style={[styles.interactionText, { color: colors.subText }]}>
@@ -347,28 +487,30 @@ export default function Posts({
             {item.commentCount}
           </Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.interactionButton}
-          onPress={() => handleBookmark(item._id, item.bookmarks?.includes(user._id))}
-        >
-          <Icon
-            name={item.bookmarks?.includes(user._id) ? 'bookmark' : 'bookmark-outline'}
-            size={wp(5)}
-            color={colors.icon}
-          />
-          <Text style={[styles.interactionText, { color: colors.subText }]}>
-            {item.bookmarkCount || 0}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.interactionButton}
-          onPress={() => handleShare(item._id)}
-        >
-          <Icon name="share-outline" size={wp(5)} color={colors.icon} />
-          <Text style={[styles.interactionText, { color: colors.subText }]}>
-            {item.shareCount}
-          </Text>
-        </TouchableOpacity>
+        <View className='flex-row'>
+          <TouchableOpacity
+            style={styles.interactionButton}
+            onPress={() => handleBookmark(item._id, item.bookmarks?.includes(user._id))}
+          >
+            <Icon
+              name={item.bookmarks?.includes(user._id) ? 'bookmark' : 'bookmark-outline'}
+              size={wp(5)}
+              color={colors.icon}
+            />
+            <Text style={[styles.interactionText, { color: colors.subText }]}>
+              {item.bookmarkCount || 0}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.interactionButton}
+            onPress={() => handleSharePress(item)}
+          >
+            <Icon name="share-outline" size={wp(5)} color={colors.icon} />
+            <Text style={[styles.interactionText, { color: colors.subText }]}>
+              {item.shareCount}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
       <Text style={[styles.viewCount, { color: colors.subText }]}>
         {item.viewCount || 0} Views
@@ -419,6 +561,55 @@ export default function Posts({
             title="Share Options"
           />
         </>
+      )}
+
+      {selectedPostForShare && (
+        <ShareModal
+          visible={shareModalVisible}
+          onClose={() => setShareModalVisible(false)}
+          colors={colors}
+          onRepost={() => {
+            handleRepost(selectedPostForShare._id);
+            setShareModalVisible(false);
+          }}
+          onBookmark={() => {
+            handleBookmark(
+              selectedPostForShare._id, 
+              selectedPostForShare.bookmarks?.includes(user._id)
+            );
+            setShareModalVisible(false);
+          }}
+          isBookmarked={selectedPostForShare?.bookmarks?.includes(user._id)}
+          onShareDirect={() => {
+            // This would navigate to direct messages in a real app
+            Alert.alert('Direct Message', 'This would open direct messages');
+            setShareModalVisible(false);
+          }}
+          postUrl={`https://yourapp.com/post-view/${selectedPostForShare?._id}`}
+          onQuote={() => {
+            // Navigate to quote screen with post details
+            router.push({
+              pathname: 'quote-post',
+              params: {
+                id: selectedPostForShare._id,
+                content: selectedPostForShare.content,
+                username: selectedPostForShare.user.username,
+                media: JSON.stringify(selectedPostForShare.media),
+                repost: selectedPostForShare.repost ? JSON.stringify(selectedPostForShare.repost) : null
+              }
+            });
+          }}
+        />
+      )}
+
+      {repostModalVisible && (
+        <RepostModal
+          visible={repostModalVisible}
+          onClose={() => setRepostModalVisible(false)}
+          colors={colors}
+          onRepost={() => handleRepostToggle(selectedPostForShare._id)}
+          postId={selectedPostForShare._id}
+        />
       )}
     </>
   );
@@ -485,6 +676,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: wp(2),
   },
+  quoteContainer: {
+    paddingLeft: wp(3),
+    borderLeftWidth: 2,
+    marginTop: hp(1),
+    marginBottom: hp(1.5),
+  },
+  quoteLabel: {
+    fontSize: wp(3.5),
+    marginBottom: hp(0.5),
+    fontStyle: 'italic',
+  },
+  quoteMedia: {
+    width: '100%',
+    height: hp(25),
+    borderRadius: 12,
+    marginTop: hp(1)
+  },
   interactionButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -509,4 +717,73 @@ const styles = StyleSheet.create({
     right: 0,
     padding: wp(2),
   },
+  // Add these to your existing StyleSheet
+singleImage: {
+  width: '100%',
+  aspectRatio: 16/9,
+  borderRadius: 12,
+  marginBottom: hp(1.5),
+},
+twoImageContainer: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  marginBottom: hp(1.5),
+},
+twoImage: {
+  width: '49%',
+  aspectRatio: 1,
+  borderRadius: 12,
+},
+threeImageContainer: {
+  flexDirection: 'row',
+  height: hp(25),
+  marginBottom: hp(1.5),
+},
+threeImageLeft: {
+  width: '60%',
+  height: '100%',
+  borderRadius: 12,
+  marginRight: wp(1),
+},
+threeImageRightContainer: {
+  width: '39%',
+  height: '100%',
+  justifyContent: 'space-between',
+},
+threeImageRight: {
+  width: '100%',
+  height: '48%',
+  borderRadius: 12,
+},
+fourImageContainer: {
+  flexDirection: 'row',
+  flexWrap: 'wrap',
+  justifyContent: 'space-between',
+  marginBottom: hp(1.5),
+},
+fourImage: {
+  width: '49%',
+  aspectRatio: 1,
+  borderRadius: 12,
+  marginBottom: hp(1),
+},
+mediaContainer: {
+  marginBottom: hp(1),
+},
+videoScroll: {
+  marginTop: hp(1),
+},
+videoContainer: {
+  width: wp(90),
+  height: hp(35),
+  borderRadius: 12,
+  backgroundColor: '#000',
+  justifyContent: 'center',
+  alignItems: 'center',
+  marginRight: wp(2),
+},
+videoPlaceholderText: {
+  color: '#fff',
+  fontSize: wp(4),
+},
 });

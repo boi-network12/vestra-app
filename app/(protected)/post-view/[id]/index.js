@@ -1,4 +1,4 @@
-import { View, Text, Image, StyleSheet, TextInput, TouchableOpacity, FlatList, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, Image, StyleSheet, TextInput, TouchableOpacity, FlatList, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import React, { useEffect, useState } from 'react';
 import { useLocalSearchParams } from 'expo-router';
 import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-native-responsive-screen';
@@ -12,6 +12,12 @@ import { usePostInteraction } from '../../../../contexts/PostInteractionContext'
 import { usePost } from '../../../../contexts/PostContext';
 import { Alert } from 'react-native';
 import ActionModal from '../../../../components/SharedComponents/ActionModal';
+
+const VideoPlaceholder = ({ uri }) => (
+  <View style={styles.videoContainer}>
+    <Text style={styles.videoPlaceholderText}>Video: {uri}</Text>
+  </View>
+);
 
 export default function PostView() {
   const {
@@ -47,6 +53,7 @@ export default function PostView() {
   const [isLoading, setIsLoading] = useState(true);
   
 
+  const parsedMedia = media ? (typeof media === 'string' ? [{ url: media, type: 'image' }] : JSON.parse(media)) : []
 
   const post = selectedPost && selectedPost._id === id
     ? selectedPost
@@ -55,7 +62,7 @@ export default function PostView() {
         content,
         user: { username, profilePicture, _id: "" },
         location: { name: location },
-        media: media ? [{ url: media }] : [],
+        media: parsedMedia,
         likeCount: parseInt(likeCount, 10) || 0,
         commentCount: parseInt(commentCount, 10) || 0,
         shareCount: parseInt(shareCount, 10) || 0,
@@ -63,7 +70,7 @@ export default function PostView() {
         viewCount: parseInt(viewCount, 10) || 0,
         isLiked: false, 
         createdAt,
-        repost: repost ? JSON.parse(repost) : null,
+        repost: repostData,
         bookmarks: [],
       };
       
@@ -251,6 +258,85 @@ export default function PostView() {
     </View>
   );
 
+  const renderMedia = (mediaItems) => {
+    if (!mediaItems || mediaItems.length === 0) return null;
+  
+    const images = mediaItems.filter(item => item.type === 'image' || item.url.match(/\.(jpg|jpeg|png|gif)$/i));
+    const videos = mediaItems.filter(item => item.type === 'video' || item.url.match(/\.(mp4|mov)$/i));
+  
+    // Twitter-like image grid logic
+    const renderImageGrid = () => {
+      if (images.length === 1) {
+        return (
+          <Image
+            source={{ uri: images[0].url }}
+            style={[styles.singleImage, { aspectRatio: 16/9 }]}
+            resizeMode="cover"
+          />
+        );
+      } else if (images.length === 2) {
+        return (
+          <View style={styles.twoImageContainer}>
+            {images.map((item, index) => (
+              <Image
+                key={index}
+                source={{ uri: item.url }}
+                style={styles.twoImage}
+                resizeMode="cover"
+              />
+            ))}
+          </View>
+        );
+      } else if (images.length === 3) {
+        return (
+          <View style={styles.threeImageContainer}>
+            <Image
+              source={{ uri: images[0].url }}
+              style={styles.threeImageLeft}
+              resizeMode="cover"
+            />
+            <View style={styles.threeImageRightContainer}>
+              {images.slice(1, 3).map((item, index) => (
+                <Image
+                  key={index}
+                  source={{ uri: item.url }}
+                  style={styles.threeImageRight}
+                  resizeMode="cover"
+                />
+              ))}
+            </View>
+          </View>
+        );
+      } else if (images.length >= 4) {
+        return (
+          <View style={styles.fourImageContainer}>
+            {images.slice(0, 4).map((item, index) => (
+              <Image
+                key={index}
+                source={{ uri: item.url }}
+                style={styles.fourImage}
+                resizeMode="cover"
+              />
+            ))}
+          </View>
+        );
+      }
+    };
+  
+    return (
+      <View style={styles.mediaContainer}>
+        {images.length > 0 && renderImageGrid()}
+        {videos.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.videoScroll}>
+            {videos.map((item, index) => (
+              <VideoPlaceholder key={index} uri={item.url} style={styles.video} />
+            ))}
+          </ScrollView>
+        )}
+      </View>
+    );
+  };
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -288,26 +374,26 @@ export default function PostView() {
                 </Text>
               </View>
 
-              {repostData && repostData.user ? (
+              {post.quote && post.quote.user ? (
+                <View style={[styles.quoteContainer, { borderLeftColor: colors.primary }]}>
+                  <Text style={[styles.quoteLabel, { color: colors.subText }]}>
+                    Quoted from @{post.quote.user.username}
+                  </Text>
+                  <Text style={[styles.content, { color: colors.text }]}>{post.quote.content}</Text>
+                  {renderMedia(post.quote.media)}
+                </View>
+              ) : repostData && repostData.user ? (
                 <View style={[styles.repostContainer, { borderLeftColor: colors.primary }]}>
                   <Text style={[styles.repostLabel, { color: colors.subText }]}>
                     Reposted from @{repostData.user.username}
                   </Text>
                   <Text style={[styles.content, { color: colors.text }]}>{repostData.content}</Text>
-                  {repostData.media && repostData.media.length > 0 && (
-                    <Image
-                      source={{ uri: repostData.media[0].url }}
-                      style={styles.repostMedia}
-                      resizeMode="cover"
-                    />
-                  )}
+                  {renderMedia(repostData.media)}
                 </View>
               ) : (
                 <>
                   <Text style={[styles.content, { color: colors.text }]}>{content}</Text>
-                  {media && (
-                    <Image source={{ uri: media }} style={styles.media} resizeMode="cover" />
-                  )}
+                  {renderMedia(post.media)}
                 </>
               )}
 
@@ -403,6 +489,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: hp(1.5),
   },
+  quoteContainer: {
+    paddingLeft: wp(3),
+    borderLeftWidth: 2,
+    marginTop: hp(1),
+    marginBottom: hp(1.5),
+  },
+  quoteLabel: {
+    fontSize: wp(3.5),
+    marginBottom: hp(0.5),
+    fontStyle: 'italic',
+  },
   avatar: {
     width: wp(10),
     height: wp(10),
@@ -441,11 +538,32 @@ const styles = StyleSheet.create({
     lineHeight: hp(2.8),
     marginBottom: hp(2),
   },
+  mediaContainer: {
+    marginBottom: hp(2),
+  },
+  imageGrid: {
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    alignItems: "center"
+  },
   media: {
-    width: '100%',
+    borderRadius: 8,
+  },
+  videoScroll: {
+    marginTop: hp(1),
+  },
+  videoContainer: {
+    width: wp(90),
     height: hp(35),
     borderRadius: 8,
-    marginBottom: hp(2),
+    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: wp(2),
+  },
+  videoPlaceholderText: {
+    color: '#fff',
+    fontSize: wp(4),
   },
   statsContainer: {
     paddingVertical: hp(1.5),
@@ -560,24 +678,6 @@ const styles = StyleSheet.create({
     marginRight: wp(3),
     maxHeight: hp(15),
   },
-  mediaContainer: {
-    marginTop: hp(1.5),
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  media: {
-    width: '100%',
-    aspectRatio: 1, // Maintain aspect ratio
-    maxHeight: hp(35),
-    borderRadius: 12,
-  },
-  repostMedia: {
-    width: '100%',
-    aspectRatio: 1, // Maintain aspect ratio
-    maxHeight: hp(25),
-    borderRadius: 8,
-    marginTop: hp(1),
-  },
   repostContainer: {
     paddingLeft: wp(3),
     borderLeftWidth: 2,
@@ -588,5 +688,53 @@ const styles = StyleSheet.create({
     fontSize: wp(3.5),
     marginBottom: hp(0.5),
     fontStyle: 'italic',
+  },
+  singleImage: {
+    width: '100%',
+    borderRadius: 8,
+    marginBottom: hp(1),
+  },
+  twoImageContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: hp(1),
+  },
+  twoImage: {
+    width: '48%',
+    aspectRatio: 1,
+    borderRadius: 8,
+  },
+  threeImageContainer: {
+    flexDirection: 'row',
+    height: hp(25),
+    marginBottom: hp(1),
+  },
+  threeImageLeft: {
+    width: '60%',
+    height: '100%',
+    borderRadius: 8,
+    marginRight: wp(1),
+  },
+  threeImageRightContainer: {
+    width: '38%',
+    height: '100%',
+    justifyContent: 'space-between',
+  },
+  threeImageRight: {
+    width: '100%',
+    height: '48%',
+    borderRadius: 8,
+  },
+  fourImageContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: hp(1),
+  },
+  fourImage: {
+    width: '48%',
+    aspectRatio: 1,
+    borderRadius: 8,
+    marginBottom: hp(1),
   },
 });
