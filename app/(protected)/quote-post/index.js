@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Image, StyleSheet, Alert, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Image, StyleSheet, Alert, Platform, ScrollView } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-native-responsive-screen';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -9,6 +9,12 @@ import { useTheme } from '../../../contexts/ThemeContext';
 import { getThemeColors } from '../../../utils/theme';
 import { usePostInteraction } from '../../../contexts/PostInteractionContext';
 import { usePost } from '../../../contexts/PostContext';
+
+const VideoPlaceholder = ({ uri }) => (
+  <View style={styles.videoContainer}>
+    <Text style={styles.videoPlaceholderText}>Video: {uri}</Text>
+  </View>
+);
 
 export default function QuotePostScreen() {
   const { id, content, username, media, repost } = useLocalSearchParams();
@@ -20,12 +26,92 @@ export default function QuotePostScreen() {
   const [quoteContent, setQuoteContent] = useState('');
   const [selectedMedia, setSelectedMedia] = useState([]);
   const [post, setPost] = useState(null);
+
+  // Parse the media and repost data
   const parsedMedia = media ? JSON.parse(media) : [];
   const repostData = repost ? JSON.parse(repost) : null;
 
-  // Parse the media and repost data
   
-
+  
+    // Reuse the media rendering logic from post.js
+    const renderMedia = (mediaItems) => {
+      if (!mediaItems || mediaItems.length === 0) return null;
+    
+      const images = mediaItems.filter(item => item.type === 'image' || item.url.match(/\.(jpg|jpeg|png|gif)$/i));
+      const videos = mediaItems.filter(item => item.type === 'video' || item.url.match(/\.(mp4|mov)$/i));
+    
+      const renderImageGrid = () => {
+        if (images.length === 1) {
+          return (
+            <Image
+              source={{ uri: images[0].url }}
+              style={styles.singleImage}
+              resizeMode="cover"
+            />
+          );
+        } else if (images.length === 2) {
+          return (
+            <View style={styles.twoImageContainer}>
+              {images.map((item, index) => (
+                <Image
+                  key={index}
+                  source={{ uri: item.url }}
+                  style={styles.twoImage}
+                  resizeMode="cover"
+                />
+              ))}
+            </View>
+          );
+        } else if (images.length === 3) {
+          return (
+            <View style={styles.threeImageContainer}>
+              <Image
+                source={{ uri: images[0].url }}
+                style={styles.threeImageLeft}
+                resizeMode="cover"
+              />
+              <View style={styles.threeImageRightContainer}>
+                {images.slice(1, 3).map((item, index) => (
+                  <Image
+                    key={index}
+                    source={{ uri: item.url }}
+                    style={styles.threeImageRight}
+                    resizeMode="cover"
+                  />
+                ))}
+              </View>
+            </View>
+          );
+        } else if (images.length >= 4) {
+          return (
+            <View style={styles.fourImageContainer}>
+              {images.slice(0, 4).map((item, index) => (
+                <Image
+                  key={index}
+                  source={{ uri: item.url }}
+                  style={styles.fourImage}
+                  resizeMode="cover"
+                />
+              ))}
+            </View>
+          );
+        }
+      };
+    
+      return (
+        <View style={styles.mediaContainer}>
+          {images.length > 0 && renderImageGrid()}
+          {videos.length > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.videoScroll}>
+              {videos.map((item, index) => (
+                <VideoPlaceholder key={index} uri={item.url} style={styles.video} />
+              ))}
+            </ScrollView>
+          )}
+        </View>
+      );
+    };
+  
 
   useEffect(() => {
     const fetchPost = async () => {
@@ -140,7 +226,7 @@ export default function QuotePostScreen() {
         </View>
       )}
 
-      <View style={[styles.quotedPost, { backgroundColor: colors.card }]}>
+      <View style={[styles.quotedPost, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Text style={[styles.quotedUsername, { color: colors.text }]}>@{username}</Text>
         {repostData && repostData.user ? (
           <>
@@ -148,19 +234,12 @@ export default function QuotePostScreen() {
               Reposted from @{repostData.user.username}
             </Text>
             <Text style={[styles.quotedContent, { color: colors.text }]}>{repostData.content}</Text>
-            {repostData.media && repostData.media.length > 0 && (
-              <Image
-                source={{ uri: repostData.media[0].url }}
-                style={styles.quotedMedia}
-              />
-            )}
+            {repostData.media && renderMedia(repostData.media)}
           </>
         ) : (
           <>
             <Text style={[styles.quotedContent, { color: colors.text }]}>{content}</Text>
-            {media && (
-              <Image source={{ uri: media }} style={styles.quotedMedia} />
-            )}
+            {parsedMedia.length > 0 && renderMedia(parsedMedia)}
           </>
         )}
       </View>
@@ -226,8 +305,7 @@ const styles = StyleSheet.create({
     marginHorizontal: wp(4),
     padding: wp(3),
     borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#ccc',
+    borderWidth: 1
   },
   quotedUsername: {
     fontSize: wp(4),
@@ -247,5 +325,73 @@ const styles = StyleSheet.create({
     fontSize: wp(3.5),
     marginBottom: hp(0.5),
     fontStyle: 'italic',
+  },
+  singleImage: {
+    width: '100%',
+    aspectRatio: 16/9,
+    borderRadius: 12,
+    marginBottom: hp(1.5),
+  },
+  twoImageContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: hp(1.5),
+  },
+  twoImage: {
+    width: '49%',
+    aspectRatio: 1,
+    borderRadius: 12,
+  },
+  threeImageContainer: {
+    flexDirection: 'row',
+    height: hp(25),
+    marginBottom: hp(1.5),
+  },
+  threeImageLeft: {
+    width: '60%',
+    height: '100%',
+    borderRadius: 12,
+    marginRight: wp(1),
+  },
+  threeImageRightContainer: {
+    width: '39%',
+    height: '100%',
+    justifyContent: 'space-between',
+  },
+  threeImageRight: {
+    width: '100%',
+    height: '48%',
+    borderRadius: 12,
+  },
+  fourImageContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: hp(1.5),
+  },
+  fourImage: {
+    width: '49%',
+    aspectRatio: 1,
+    borderRadius: 12,
+    marginBottom: hp(1),
+  },
+  mediaContainer: {
+    marginBottom: hp(1),
+  },
+  videoScroll: {
+    marginTop: hp(1),
+  },
+  videoContainer: {
+    width: wp(90),
+    height: hp(35),
+    borderRadius: 12,
+    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: wp(2),
+  },
+  videoPlaceholderText: {
+    color: '#fff',
+    fontSize: wp(4),
   },
 });
