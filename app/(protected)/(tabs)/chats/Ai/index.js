@@ -1,4 +1,4 @@
-import { View, Text, SafeAreaView, StyleSheet, FlatList, KeyboardAvoidingView, TextInput, TouchableOpacity, ActivityIndicator, Platform, StatusBar as RNStatusBar } from 'react-native'
+import { View, Text, SafeAreaView, StyleSheet, FlatList, KeyboardAvoidingView, TextInput, TouchableOpacity, ActivityIndicator, Platform, StatusBar as RNStatusBar, Animated } from 'react-native'
 import React, { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../../../../../contexts/AuthContext'
 import { useTheme } from '../../../../../contexts/ThemeContext';
@@ -11,10 +11,12 @@ import { useNavigation } from 'expo-router';
 import MessageItem from '../../../../../components/Chat/MessageItem';
 import config from '../../../../../config';
 import axios from 'axios';
+import { useScroll } from '../../../../../contexts/ScrollContext';
 
 export default function Ai() {
   const { user, setUser } = useAuth();
   const { isDark } = useTheme();
+  const { scrollY } = useScroll(); 
   const colors = getThemeColors(isDark);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
@@ -22,6 +24,10 @@ export default function Ai() {
   const flatListRef = useRef();
   const AI_CHAT_ID = `ai_chat_${user._id}`;
   const navigate = useNavigation()
+   
+    
+  
+  const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 
 
   const loadMessages = async () => {
@@ -173,7 +179,7 @@ export default function Ai() {
 
       <View style={[styles.chatBackground, { backgroundColor: colors.background }]}>
         <View style={[styles.chatBackground, { backgroundColor: colors.background }]}>
-        <FlatList
+        <AnimatedFlatList
             ref={flatListRef}
             data={messages}
             renderItem={renderMessageItem}
@@ -187,6 +193,13 @@ export default function Ai() {
                 <Text style={[styles.emptyText, { color: colors.subText }]}>Start chatting with Vestra Ai!</Text>
               </View>
             }
+            onScroll={Animated.event(
+                [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+                {
+                  useNativeDriver: true,
+                }
+              )}
+            scrollEventThrottle={16}
           />
         </View>
       </View>

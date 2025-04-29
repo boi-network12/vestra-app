@@ -28,24 +28,8 @@ export default function users() {
   const colors = getThemeColors(isDark);
   const navigation = useNavigation();
   const [searchQuery, setSearchQuery] = useState('');
-  const { blockUser, unblockUser, blockedUsers, checkBlockStatus, fetchBlockedUsers, isBlockedByUser } = useBlock();
-  const [isBlocked, setIsBlocked] = useState(false);
-  const [isBlockedByTargetUser, setIsBlockedByTargetUser] = useState(false);
+  const { isBlockedByUser } = useBlock();
 
-    useEffect(() => {
-      const checkBlockedStatus = async () => {
-        try {
-         
-        } catch (error) {
-          
-        }
-      };
-      checkBlockedStatus();
-    }, [userDetails._id, checkBlockStatus, isBlockedByUser]);
-
-  useEffect(() => {
-    fetchSuggestedFriends();
-  }, []);
 
   useEffect(() => {
     const initFollowStatuses = async () => {
@@ -53,8 +37,14 @@ export default function users() {
         const statuses = {};
         for (const friend of suggestedFriends) {
           if (friend._id) {
-            const status = await checkFollowStatus(friend._id);
-            statuses[friend._id] = status;
+            const [followStatus, isBlockedByTarget] = await Promise.all([
+              checkFollowStatus(friend._id),
+              isBlockedByUser(friend._id), 
+            ]);
+            statuses[friend._id] = {
+              ...followStatus,
+              isBlockedByUser: isBlockedByTarget, 
+            };
           }
         }
         setFollowStatuses(statuses);
@@ -66,7 +56,7 @@ export default function users() {
     if (suggestedFriends.length > 0) {
       initFollowStatuses();
     }
-  }, [suggestedFriends, checkFollowStatus]);
+  }, [suggestedFriends, checkFollowStatus, isBlockedByUser]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -140,6 +130,7 @@ const navigateToProfile = (user) => {
   const RenderItem = React.memo(({ item }) => {
     const status = followStatuses[item._id]?.status || 'not_following';
     const isFollowingYou = followStatuses[item._id]?.isFollowingYou || false;
+    const isBlockedByTarget = followStatuses[item._id]?.isBlockedByUser || false;
 
     let buttonText = 'Follow';
     let buttonStyle = { backgroundColor: colors.primary };
@@ -151,6 +142,20 @@ const navigateToProfile = (user) => {
       buttonText = 'Follow Back';
       buttonStyle = { backgroundColor: colors.primary || '#3a86ff' }; // Use a different color for follow back
     }
+
+    const renderFollowButton = () => {
+      if (isBlockedByTarget) {
+        return null; // No button displayed
+      }
+      return (
+        <TouchableOpacity
+          style={[styles.followButton, buttonStyle]}
+          onPress={() => handleFollowAction(item._id)}
+        >
+          <Text style={styles.followButtonText}>{buttonText}</Text>
+        </TouchableOpacity>
+      );
+    };
 
     return (
       <TouchableOpacity
@@ -184,17 +189,7 @@ const navigateToProfile = (user) => {
             </Text>
           )}
         </View>
-        <TouchableOpacity
-          style={[
-            styles.followButton, 
-            buttonStyle,
-            ]}
-          onPress={() => handleFollowAction(item._id)}
-        >
-          <Text style={styles.followButtonText}>
-            {buttonText}
-          </Text>
-        </TouchableOpacity>
+        {renderFollowButton()}
       </TouchableOpacity>
     )
 });

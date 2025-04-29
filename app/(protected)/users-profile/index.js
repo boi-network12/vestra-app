@@ -10,6 +10,7 @@ import ProfileViewDetail from '../../../components/UsersDetails/ProfileView';
 import { useFollow } from '../../../contexts/FriendContext';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useBlock } from '../../../contexts/BlockContext';
+import UserProfileHeader from '../../../components/Headers/UserProfileHeader';
 
 export default function UserProfile() {
   const { user, followStatus } = useLocalSearchParams();
@@ -127,7 +128,6 @@ export default function UserProfile() {
     }
   };
   
-    
      
   const handleFollowAction = async () => {
     try {
@@ -245,7 +245,7 @@ const renderBlockedByUserView = () => (
         }}
     >
         <StatusBar style='auto'/>
-        <ProfileHeader
+        <UserProfileHeader
             title={user.name}
             onBackPress={() => navigation.goBack()}
             colors={colors}

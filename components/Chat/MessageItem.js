@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, Image, Animated, Pressable, StyleSheet, Alert } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, TouchableOpacity, Image, Animated, Pressable, StyleSheet, Alert, Clipboard, Modal, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Swipeable } from 'react-native-gesture-handler';
 import { Video, Audio } from 'expo-av';
@@ -18,19 +18,44 @@ const MessageItem = ({
   selectedMessages,
   toggleMessageSelection,
   handleDeleteMessage,
+  handleRetryMessage,
   onReply,
+  onEdit,
   colors,
   messages,
   setIsMultiSelect,
   followStatuses
 }) => {
+  const [contextMenuVisible, setContextMenuVisible] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editedText, setEditedText] = useState(item.text || '');
+  const [actions, setActions] = useState([]);
+  const editInputRef = useRef(null);
+
+  useEffect(() => {
+    if (editing && editInputRef.current) {
+      setTimeout(() => {
+        editInputRef.current.focus();
+      }, 200); // Slight delay to ensure rendering is complete
+    }
+  }, [editing]);
+
+
   const isCurrentUser = item.sender === user._id;
   const sender = isCurrentUser ? user : recipient;
   const isSelected = selectedMessages.includes(item._id);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const swipeableRef = useRef(null); 
   
-  
+  useEffect(() => {
+    if (contextMenuVisible) {
+      const fetchActions = async () => {
+        const fetchedActions = await getContextMenuActions(item, user, canEdit);
+        setActions(fetchedActions);
+      };
+      fetchActions();
+    }
+  }, [contextMenuVisible, item, user]);
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -40,15 +65,158 @@ const MessageItem = ({
     }).start();
   }, [isSelected, fadeAnim]);
 
+  const canEdit = () => {
+    const isOwnMessage = item.sender === user._id;
+    const isTextMessage = !!item.text;
+    const timeLimit = 15 * 60 * 1000; // 15 minutes in milliseconds
+    const withinTimeLimit = new Date() - new Date(item.createdAt) <= timeLimit;
+    const notRead = item.status !== MESSAGE_STATUS.READ;
+    return isOwnMessage && isTextMessage && withinTimeLimit && notRead;
+  };
+
+  // Handle copy action
+  const handleCopy = async () => {
+    if (item.text) {
+      await Clipboard.setString(item.text);
+      Alert.alert('Success', 'Message copied to clipboard');
+    }
+    setContextMenuVisible(false);
+  };
+
+  // Handle edit action
+  const handleEdit = () => {
+    setEditedText(item.text || '');
+    setContextMenuVisible(false); // Close context menu
+    setTimeout(() => {
+      setEditing(true);
+    }, 100);
+  };
+
+  // Handle edit submission
+  const handleEditSubmit = () => {
+    if (editedText.trim() && editedText !== item.text) {
+      onEdit(item._id, editedText);
+    }
+    setEditing(false);
+  };
+
   const handleLongPress = async () => {
     try {
       await Haptics.selectionAsync();
     } catch (error) {
       console.warn('Haptic feedback failed:', error);
     }
-    setIsMultiSelect(true);
-    toggleMessageSelection(item._id);
+    if (isMultiSelect) {
+      toggleMessageSelection(item._id);
+    } else {
+      setContextMenuVisible(true);
+    }
   };
+
+  // Define context menu actions
+  const getContextMenuActions = async (item, user, canEdit) => {
+    const actions = [];
+
+    // Copy action (available for text messages)
+    if (item.text) {
+      actions.push({
+        label: 'Copy',
+        icon: 'copy-outline',
+        onPress: handleCopy,
+        color: colors.text,
+      });
+    }
+
+    // Edit action
+    if (canEdit()) {
+      actions.push({
+        label: 'Edit',
+        icon: 'pencil',
+        onPress: handleEdit,
+        color: colors.text,
+      });
+    }
+
+    // Delete action
+    actions.push({
+      label: 'Delete',
+      icon: 'trash',
+      onPress: () => {
+        Alert.alert(
+          'Delete Message',
+          'Are you sure you want to delete this message?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Delete',
+              style: 'destructive',
+              onPress: () => handleDeleteMessage(item._id),
+            },
+          ]
+        );
+      },
+      color: colors.errorText,
+    });
+
+    // Reply action
+    actions.push({
+      label: 'Reply',
+      icon: 'arrow-undo-outline',
+      onPress: () => onReply(item),
+      color: colors.text,
+    });
+
+    // Select for multi-delete
+    if (!isMultiSelect) {
+      actions.push({
+        label: 'Select',
+        icon: 'checkbox-outline',
+        onPress: () => {
+          setIsMultiSelect(true);
+          toggleMessageSelection(item._id);
+          setContextMenuVisible(false);
+        },
+        color: colors.text,
+      });
+    }
+
+    return actions;
+  };
+
+  // Render context menu
+  const renderContextMenu = () => (
+    <Modal
+      visible={contextMenuVisible}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setContextMenuVisible(false)}
+    >
+      <TouchableOpacity
+        style={styles.contextMenuOverlay}
+        activeOpacity={1}
+        onPress={() => setContextMenuVisible(false)}
+      >
+        <View style={[styles.contextMenu, { backgroundColor: colors.card }]}>
+          {actions.map((action, index) => (
+            <TouchableOpacity
+              key={index}
+              style={styles.contextMenuItem}
+              onPress={() => {
+                action.onPress();
+                setContextMenuVisible(false);
+              }}
+            >
+              <Ionicons name={action.icon} size={hp(2)} color={action.color} />
+              <Text style={[styles.contextMenuText, { color: action.color, marginLeft: wp(2) }]}>
+                {action.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+  
 
   const renderRightActions = (progress, dragX) => {
     const trans = dragX.interpolate({
@@ -97,6 +265,7 @@ const MessageItem = ({
       </TouchableOpacity>
     );
   };
+
 
   const renderMediaPreview = (file, index) => {
     const isImage = file.type === 'image';
@@ -224,13 +393,91 @@ const MessageItem = ({
     });
   };
 
+  const renderStatusIcon = () => {
+    let iconName;
+    let iconColor;
+
+    switch (item.status) {
+      case MESSAGE_STATUS.SENDING:
+        iconName = 'checkmark';
+        iconColor = colors.subText; // Gray for sending
+        break;
+      case MESSAGE_STATUS.SENT:
+        iconName = 'checkmark';
+        iconColor = colors.subText; // Gray for sent
+        break;
+      case MESSAGE_STATUS.DELIVERED:
+        iconName = 'checkmark-done';
+        iconColor = colors.subText; // Gray for delivered
+        break;
+      case MESSAGE_STATUS.READ:
+        iconName = 'checkmark-done';
+        iconColor = colors.primary; // Blue for read
+        break;
+      case MESSAGE_STATUS.FAILED:
+        iconName = 'warning';
+        iconColor = colors.errorText; // Red for failed
+        break;
+      default:
+        iconName = 'checkmark';
+        iconColor = colors.subText;
+    }
+
+    return (
+      <Ionicons
+        name={iconName}
+        size={hp(2)}
+        color={iconColor}
+      />
+    );
+  };
+
+  // Modified renderMessageText to support editing
+  const renderMessageText = () => {
+    if (editing) {
+      return (
+        <View style={styles.editContainer}>
+          <TextInput
+            ref={editInputRef}
+            style={[styles.editInput, { backgroundColor: colors.inputBg, color: colors.text }]}
+            value={editedText}
+            onChangeText={setEditedText}
+            autoFocus
+          />
+          <View style={styles.editButtons}>
+            <TouchableOpacity onPress={() => setEditing(false)}>
+              <Ionicons name="close" size={hp(2.5)} color={colors.errorText} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleEditSubmit}>
+              <Ionicons name="checkmark" size={hp(2.5)} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    }
+    return (
+      <Text
+        style={[
+          styles.messageText,
+          isCurrentUser ? styles.currentUserText : styles.otherUserText,
+          { color: isCurrentUser ? colors.background : colors.text },
+        ]}
+      >
+        {item.text}
+        {item.edited && (
+          <Text style={[styles.editedLabel, { color: colors.subText }]}> (edited)</Text>
+        )}
+      </Text>
+    );
+  };
+
 
   return (
     <Swipeable
       ref={swipeableRef}
       renderRightActions={renderRightActions}
       overshootRight={false}
-      enabled={!isMultiSelect}
+      enabled={!isMultiSelect && !editing}
       onSwipeableRightOpen={handleSwipeOpen}
     >
       <Pressable
@@ -290,17 +537,7 @@ const MessageItem = ({
                 </Text>
               </View>
             )}
-            {item.text && (
-              <Text
-                style={[
-                  styles.messageText,
-                  isCurrentUser ? styles.currentUserText : styles.otherUserText,
-                  { color: isCurrentUser ? colors.background : colors.text },
-                ]}
-              >
-                {item.text}
-              </Text>
-            )}
+            {renderMessageText()}
             {item.linkPreview && (
               <TouchableOpacity
                 style={[
@@ -363,31 +600,12 @@ const MessageItem = ({
               >
                 {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </Text>
-              {isCurrentUser && (
-                <Ionicons
-                  name={
-                    item.status === MESSAGE_STATUS.FAILED
-                      ? 'warning'
-                      : item.status === MESSAGE_STATUS.DELIVERED
-                      ? 'checkmark-done'
-                      : item.status === MESSAGE_STATUS.READ
-                      ? 'checkmark-done'
-                      : 'checkmark'
-                  }
-                  size={hp(2)}
-                  color={
-                    item.status === MESSAGE_STATUS.FAILED
-                      ? colors.errorText
-                      : item.status === MESSAGE_STATUS.READ
-                      ? colors.primary
-                      : colors.subText
-                  }
-                />
-              )}
+              {isCurrentUser && renderStatusIcon()}
             </View>
           </View>
         </Animated.View>
       </Pressable>
+      {renderContextMenu()}
     </Swipeable>
   );
 };
@@ -566,6 +784,53 @@ const styles = StyleSheet.create({
   audioDuration: {
     fontSize: hp(1.4),
     marginTop: hp(0.5),
+  },
+  contextMenuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  contextMenu: {
+    width: wp(80),
+    borderRadius: wp(0.5),
+    paddingVertical: hp(1),
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  contextMenuItem: {
+    paddingVertical: hp(1.5),
+    paddingHorizontal: wp(4),
+    flexDirection: "row",
+    alignItems: "center"
+  },
+  contextMenuText: {
+    fontSize: hp(1.8),
+    fontWeight: '500',
+  },
+  editContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: hp(0.8),
+  },
+  editInput: {
+    flex: 1,
+    borderRadius: wp(2),
+    padding: wp(2),
+    fontSize: hp(1.85),
+    maxHeight: hp(10),
+  },
+  editButtons: {
+    flexDirection: 'row',
+    marginLeft: wp(2),
+    alignItems: 'center',
+  },
+  editedLabel: {
+    fontSize: hp(1.4),
+    fontStyle: 'italic',
   },
 });
 

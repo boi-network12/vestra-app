@@ -3,7 +3,7 @@ import React, { useState } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import { heightPercentageToDP as hp } from "react-native-responsive-screen";
 
-export default function ProfileHeader({ onBackPress, colors }) {
+export default function UserProfileHeader({ onBackPress, colors, handleBlockAction, isBlockedByTargetUser, isBlocked }) {
   const [isDropdownVisible, setIsDropdownVisible] = useState(false);
 
   // Toggle dropdown visibility
@@ -17,7 +17,7 @@ export default function ProfileHeader({ onBackPress, colors }) {
         console.log('Share Profile clicked');
         break;
       case 'blockUser':
-        console.log('Share Profile clicked');
+        handleBlockAction(); 
         break;
       case 'reportUser':
         console.log('Report User clicked');
@@ -50,9 +50,12 @@ export default function ProfileHeader({ onBackPress, colors }) {
         )}
         
         
-            <TouchableOpacity onPress={toggleDropdown} style={styles.menuButton} >
+
+        {isBlocked ? null :  isBlockedByTargetUser ? null : (
+            <TouchableOpacity onPress={toggleDropdown} style={styles.menuButton} disabled={isBlockedByTargetUser}>
             <Ionicons name="ellipsis-vertical" size={hp(2.8)} color={colors.text} />
           </TouchableOpacity>
+        )}
 
         {isDropdownVisible && (
         <View style={[styles.dropdown, { backgroundColor: colors.background, borderColor: colors.border }]}>

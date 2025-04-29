@@ -1,24 +1,57 @@
-import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import { useRouter, useNavigationState } from 'expo-router';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { widthPercentageToDP as Wp, heightPercentageToDP as hp } from "react-native-responsive-screen"
+import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
+import { useEffect, useRef } from 'react';
 
-const CustomTabs = ({ state, colors }) => {
-  const router = useRouter();
+const CustomTabs = ({ state, colors, scrollY }) => {
+  
   const activeRouteName = state.routes[state.index].name;
 
-  const hiddenRoutes = [
-    'chats/[chatId]',
-    'chats/Ai',
-  ]
+  const hiddenRoutes = ['chats/[chatId]', 'chats/Ai'];
 
-  const shouldHideTabs = hiddenRoutes.some(route => 
-    activeRouteName === route || activeRouteName.startsWith(`${route}/`)
-  )
+  const shouldHideTabs = hiddenRoutes.some(
+    (route) => activeRouteName === route || activeRouteName.startsWith(`${route}/`)
+  );
 
   if (shouldHideTabs) {
     return null;
   }
+
+  // Animation setup
+  const router = useRouter();
+  const translateY = useRef(new Animated.Value(0)).current;
+  const lastScrollY = useRef(0);
+
+  // Handle scroll animation
+  useEffect(() => {
+    console.log('Setting up scrollY listener in CustomTabs');
+    const listenerId = scrollY.addListener(({ value }) => {
+      const diff = value - lastScrollY.current;
+
+      if (Math.abs(diff) > 5) {
+        if (diff > 0 && value > 30) {
+          Animated.timing(translateY, {
+            toValue: hp(7),
+            duration: 10,
+            useNativeDriver: true,
+          }).start();
+        } else if (diff < 0 && value >= 0) {
+          Animated.timing(translateY, {
+            toValue: 0,
+            duration: 10,
+            useNativeDriver: true,
+          }).start();
+        }
+        lastScrollY.current = value;
+      }
+    });
+
+    return () => {
+      console.log('Cleaning up scrollY listener in CustomTabs');
+      scrollY.removeListener(listenerId);
+    };
+  }, [scrollY, translateY]);
 
 
   const tabs = [
@@ -55,12 +88,17 @@ const CustomTabs = ({ state, colors }) => {
   ];
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.card }]}>
+    <Animated.View
+      style={[
+        styles.container,
+        { backgroundColor: colors.card, transform: [{ translateY }] },
+      ]}
+    >
       {tabs.map((tab) => {
-        const isActive = 
-          activeRouteName === tab.name || 
+        const isActive =
+          activeRouteName === tab.name ||
           activeRouteName.startsWith(`${tab.name}/`);
-        
+
         return (
           <TouchableOpacity
             key={tab.name}
@@ -79,7 +117,7 @@ const CustomTabs = ({ state, colors }) => {
           </TouchableOpacity>
         );
       })}
-    </View>
+    </Animated.View>
   );
 };
 
@@ -90,18 +128,17 @@ const styles = StyleSheet.create({
     borderTopWidth: 0.5,
     borderTopColor: 'rgba(255, 255, 255, 0.2)',
     backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    paddingBottom: 20,
+    paddingBottom: hp(2),
     // Glassmorphism effects
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -5 },
     shadowOpacity: 0.1,
     shadowRadius: 10,
     elevation: 10,
-    // Background blur (requires react-native-blur or similar for full effect)
-    // For iOS:
-    backdropFilter: 'blur(10px)',
-    // For Android (alternative):
-    // backgroundColor: 'rgba(255, 255, 255, 0.7)',]
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
   tab: {
     flex: 1,
@@ -112,7 +149,7 @@ const styles = StyleSheet.create({
   tabContent: {
     alignItems: 'center',
     paddingVertical: hp(0.4),
-    paddingHorizontal: hp(2),
+    paddingHorizontal: wp(2),
     borderRadius: hp(10),
     position: 'relative',
   },

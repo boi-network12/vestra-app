@@ -19,6 +19,7 @@ export function FollowProvider({ children }) {
     if (user) {
       fetchFollowers();
       fetchFollowing();
+      fetchSuggestedFriends();
     } else {
       setFollowers([]);
       setFollowing([]);

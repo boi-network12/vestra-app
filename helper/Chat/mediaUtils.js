@@ -1,10 +1,13 @@
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as VideoThumbnails from 'expo-video-thumbnails';
+import * as FileSystem from 'expo-file-system';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { Audio } from 'expo-av';
 import { PermissionsAndroid, Platform } from 'react-native';
 import { AUDIO_RECORDING_OPTIONS } from '../../constants/audioConfig';
+import { Alert } from 'react-native';
+import { Linking } from 'react-native';
 
 
 export const checkPermissions = async () => {
@@ -131,39 +134,71 @@ export const handleSelectDocument = async (setSelectedMedia, setMediaModalVisibl
   }
 };
 
-export const requestAudioPermission = async () => {
-  if (Platform.OS === 'android') {
-    try {
-      // Check if permission is already granted
-      const permissionStatus = await PermissionsAndroid.check(
-        PermissionsAndroid.PERMISSIONS.RECORD_AUDIO
-      );
-      if (permissionStatus) {
-        return true;
-      }
 
-      // Request permission if not granted
-      const granted = await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-        {
+const requestAudioPermission = async () => {
+  console.log('Requesting audio permissions...');
+  try {
+    if (Platform.OS === 'android') {
+      const permission = PermissionsAndroid.PERMISSIONS.RECORD_AUDIO;
+      let status = await PermissionsAndroid.check(permission);
+      console.log('Android RECORD_AUDIO permission status:', status);
+
+      if (!status) {
+        const granted = await PermissionsAndroid.request(permission, {
           title: 'Microphone Permission',
-          message: 'App needs access to your microphone for voice messages',
+          message: 'This app needs access to your microphone to record voice messages.',
           buttonNeutral: 'Ask Me Later',
           buttonNegative: 'Cancel',
           buttonPositive: 'OK',
+        });
+        console.log('Android permission request result:', granted);
+        status = granted === PermissionsAndroid.RESULTS.GRANTED;
+      }
+
+      if (!status) {
+        if (granted === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
+          Alert.alert(
+            'Permission Denied',
+            'Microphone access is required. Please enable it in app settings.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Open Settings', onPress: () => Linking.openSettings() },
+            ]
+          );
         }
-      );
-      return granted === PermissionsAndroid.RESULTS.GRANTED;
-    } catch (err) {
-      console.error('Failed to request audio permission:', err);
+        return false;
+      }
+
+      // Explicitly request expo-av permission
+      const avPermission = await Audio.requestPermissionsAsync();
+      console.log('expo-av permission status:', avPermission.status);
+      return avPermission.status === 'granted';
+    } else if (Platform.OS === 'ios') {
+      const { status, canAskAgain } = await Audio.requestPermissionsAsync();
+      console.log('iOS microphone permission status:', status);
+
+      if (status === 'granted') {
+        return true;
+      }
+
+      if (!canAskAgain) {
+        Alert.alert(
+          'Permission Denied',
+          'Microphone access is required. Please enable it in settings.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+          ]
+        );
+      }
       return false;
     }
-  } else if (Platform.OS === 'ios') {
-    // For iOS, check microphone permission using expo-av
-    const { status } = await Audio.requestPermissionsAsync();
-    return status === 'granted';
+    console.warn('Unsupported platform:', Platform.OS);
+    return false;
+  } catch (error) {
+    console.error('Failed to request audio permission:', error);
+    return false;
   }
-  return true;
 };
 
 export const handleVoiceNote = async (
@@ -176,71 +211,142 @@ export const handleVoiceNote = async (
   recordingIntervalRef,
   setRecordingDuration
 ) => {
-  if (!recordingRef) {
-    console.error('handleVoiceNote: recordingRef is undefined');
-    setIsRecording(false);
-    setRecordingStatus('idle');
-    setRecordingDuration(0);
-    recordingDurationRef.current = 0;
-    return;
-  }
-
-  console.log('handleVoiceNote recordingRef:', recordingRef);
+  console.log('handleVoiceNote called, isRecording:', isRecording, 'recordingRef.current:', recordingRef?.current);
+  
   try {
     if (isRecording) {
+      // Stop recording logic
+      console.log('Stopping recording...');
       clearInterval(recordingIntervalRef.current);
-      if (recordingRef.current) {
+      
+      if (!recordingRef?.current) {
+        console.warn('No active recording to stop. Resetting state.');
+        setIsRecording(false);
+        setRecordingStatus('idle');
+        recordingDurationRef.current = 0;
+        setRecordingDuration(0);
+        return;
+      }
+
+      try {
         await recordingRef.current.stopAndUnloadAsync();
         const uri = recordingRef.current.getURI();
+        console.log('Recording stopped, URI:', uri);
+        
+        if (!uri) {
+          throw new Error('Failed to retrieve recorded audio URI');
+        }
+
+        const fileInfo = await FileSystem.getInfoAsync(uri);
+        if (!fileInfo.exists) {
+          throw new Error('Recorded file does not exist');
+        }
+
+        const newUri = `${FileSystem.cacheDirectory}voice_note_${Date.now()}.m4a`;
+        await FileSystem.copyAsync({ from: uri, to: newUri });
+        const newFileInfo = await FileSystem.getInfoAsync(newUri);
+
         const duration = recordingDurationRef.current;
 
         const voiceNote = {
           id: Date.now().toString(),
-          uri,
+          uri: newUri,
           type: 'audio',
           name: `voice_note_${Date.now()}.m4a`,
-          size: 0,
-          duration,
+          size: newFileInfo.size || 0, 
+          duration: recordingDurationRef.current,
           mimeType: 'audio/x-m4a',
         };
 
-        setSelectedMedia([voiceNote]);
+        console.log('Adding voice note to selectedMedia:', voiceNote);
+        setSelectedMedia(prev => [...prev, voiceNote]);
+      } finally {
+        // Cleanup regardless of success/failure
         recordingRef.current = null;
+        setIsRecording(false);
+        setRecordingStatus('idle');
+        recordingDurationRef.current = 0;
+        setRecordingDuration(0);
       }
-      setIsRecording(false);
-      setRecordingStatus('idle');
-      recordingDurationRef.current = 0;
-      setRecordingDuration(0);
     } else {
-      const hasPermission = await requestAudioPermission();
-      if (!hasPermission) {
-        console.log('Microphone permission denied');
+      // Start recording logic
+      console.log('Starting recording...');
+      
+      // Request permissions
+      const { status, canAskAgain } = await Audio.requestPermissionsAsync();
+      console.log('Audio permission status:', status);
+      
+      if (status !== 'granted') {
+        if (!canAskAgain) {
+          Alert.alert(
+            'Permission Required',
+            'Microphone access is required. Please enable it in settings.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Open Settings', onPress: () => Linking.openSettings() },
+            ]
+          );
+        }
         return;
       }
 
+      // Configure audio mode
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
-        staysActiveInBackground: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
       });
 
-      const { recording: newRecording } = await Audio.Recording.createAsync(AUDIO_RECORDING_OPTIONS);
+      // Create and configure new recording
+      const recording = new Audio.Recording();
+      recordingRef.current = recording;
 
-      recordingRef.current = newRecording;
-      setIsRecording(true);
-      setRecordingStatus('recording');
-
-      recordingIntervalRef.current = setInterval(() => {
-        recordingDurationRef.current += 1;
-        setRecordingDuration(prev => prev + 1);
-      }, 1000);
+      try {
+        console.log('Preparing recording with options:', AUDIO_RECORDING_OPTIONS);
+        await recording.prepareToRecordAsync(AUDIO_RECORDING_OPTIONS);
+        console.log('Starting recording...');
+        await recording.startAsync();
+        
+        // Update state
+        setIsRecording(true);
+        setRecordingStatus('recording');
+        recordingDurationRef.current = 0;
+        setRecordingDuration(0);
+        
+        // Start duration counter
+        recordingIntervalRef.current = setInterval(() => {
+          recordingDurationRef.current += 1;
+          setRecordingDuration(recordingDurationRef.current);
+          console.log('Recording duration:', recordingDurationRef.current);
+        }, 1000);
+        
+      } catch (startError) {
+        console.error('Failed to start recording:', startError);
+        recordingRef.current = null;
+        throw new Error('Unable to start recording: ' + startError.message);
+      }
     }
   } catch (error) {
-    console.error('Failed to handle voice note:', error);
+    console.error('Voice note error:', error);
+    Alert.alert('Error', 'Failed to process voice note: ' + error.message);
+    
+    // Reset state on error
     setIsRecording(false);
     setRecordingStatus('idle');
     clearInterval(recordingIntervalRef.current);
     setRecordingDuration(0);
     recordingDurationRef.current = 0;
+    
+    // Cleanup recording if it exists
+    if (recordingRef?.current) {
+      try {
+        await recordingRef.current.stopAndUnloadAsync();
+      } catch (cleanupError) {
+        console.error('Cleanup error:', cleanupError);
+      }
+      recordingRef.current = null;
+    }
   }
 };

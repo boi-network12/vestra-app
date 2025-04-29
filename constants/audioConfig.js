@@ -20,4 +20,8 @@ export const AUDIO_RECORDING_OPTIONS = {
       linearPCMIsBigEndian: false,
       linearPCMIsFloat: false,
     },
+    web: {
+      mimeType: 'audio/webm',
+      bitsPerSecond: 128000,
+    },
   };

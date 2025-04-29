@@ -1,4 +1,4 @@
-import { Redirect } from 'expo-router';
+import { Redirect, router, usePathname } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { StyleSheet, View, ActivityIndicator, Text } from 'react-native';
 import { useEffect, useState } from 'react';
@@ -7,6 +7,8 @@ import SplashScreen from './splash';
 export default function Index() {
   const { user, loading } = useAuth();
   const [showSplash, setShowSplash] = useState(true);
+  const [initialRedirectDone, setInitialRedirectDone] = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -14,6 +16,13 @@ export default function Index() {
     }, 3000)
     return () => clearTimeout(timer);
   },[])
+
+  useEffect(() => {
+    if (!loading && user && pathname === '/') {
+      // Only redirect to feed if on the root route
+      router.replace('feed');
+    }
+  }, [loading, user, pathname]);
 
   if (showSplash) {
     return <SplashScreen onFinish={() => setShowSplash(false)} />;
@@ -23,7 +32,6 @@ export default function Index() {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#3A86FF" />
-        <Text style={styles.loadingText}>Loading your experience...</Text>
       </View>
     );
   }
@@ -32,7 +40,7 @@ export default function Index() {
     return <Redirect href="/get-started" />;
   }
 
-  return <Redirect href="./(protected)/(tabs)/feed" />;
+  return null
 }
 
 const styles = StyleSheet.create({

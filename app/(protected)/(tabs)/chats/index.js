@@ -23,6 +23,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { decryptMessage } from '../../../../utils/encryption';
 import config from '../../../../config';
 import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-native-responsive-screen';
+import { useScroll } from '../../../../contexts/ScrollContext';
 
 export default function Chats() {
   const { user } = useAuth();
@@ -30,8 +31,14 @@ export default function Chats() {
   const colors = getThemeColors(isDark);
   const navigation = useNavigation();
   const [chats, setChats] = useState([]);
+  const [filteredChats, setFilteredChats] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const swipeableRefs = useRef(new Map());
+  const { scrollY } = useScroll(); 
+  
+
+  const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 
 
   const loadChats = async () => {
@@ -55,13 +62,12 @@ export default function Chats() {
         const apiChats = await response.json();
 
 
-      const uniqueChats = deduplicateChats(apiChats);
-
         if (apiChats?.length > 0) {
           // Deduplicate API chats
           const uniqueChats = deduplicateChats(apiChats);
           await AsyncStorage.setItem(`chats_${user._id}`, JSON.stringify(uniqueChats));
           setChats(uniqueChats);
+          setFilteredChats(uniqueChats)
           return;
         }
       } catch (apiError) {
@@ -79,11 +85,27 @@ export default function Chats() {
         );
         const uniqueChats = deduplicateChats(parsedChats);
         setChats(uniqueChats);
+        setFilteredChats(uniqueChats);
       }
     } catch (error) {
       console.error('Error loading chats:', error);
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  // Handle search query changes
+  const handleSearch = (query) => {
+    setSearchQuery(query);
+    if (query.trim() === '') {
+      setFilteredChats(chats); // Reset to all chats if query is empty
+    } else {
+      const lowerQuery = query.toLowerCase();
+      const filtered = chats.filter((chat) => {
+        const recipient = chat.participants?.find((p) => p._id !== user._id);
+        return recipient?.name?.toLowerCase().includes(lowerQuery);
+      });
+      setFilteredChats(filtered);
     }
   };
 
@@ -121,7 +143,7 @@ export default function Chats() {
       // Check if chat already exists
       const existingChat = chats.find(chat => chat.chatId === chatId);
       if (existingChat) {
-        return router.navigate({
+        return router.push({
           pathname: `(protected)/(tabs)/chats/${chatId}`,
           params: { chatId, recipient: JSON.stringify(recipient) },
         });
@@ -165,7 +187,7 @@ export default function Chats() {
       if (!response.ok) throw new Error(`Failed to create chat: ${response.status}`);
 
       // Navigate to chat
-      router.navigate({
+      router.push({
         pathname: `(protected)/(tabs)/chats/${chatId}`,
         params: { chatId, recipient: JSON.stringify(recipient) },
       });
@@ -311,20 +333,43 @@ export default function Chats() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background, paddingTop: getStatusBarHeight() }]}>
-      <ChatHeader colors={colors} user={user} navigation={navigation} />
-      <FlatList
-        data={chats}
-        keyExtractor={item => item.chatId}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />}
+      
+      <ChatHeader
+        colors={colors}
+        navigation={navigation}
+        searchQuery={searchQuery}
+        setSearchQuery={handleSearch}
+      />
+      
+      <AnimatedFlatList
+        data={filteredChats} 
+        keyExtractor={(item) => item.chatId}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
         renderItem={renderChatItem}
-        ListHeaderComponent={renderAiChat}
+        ListHeaderComponent={searchQuery ? null : renderAiChat} 
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Ionicons name="chatbubbles-outline" size={50} color={colors.subText} />
-            <Text style={[styles.emptyText, { color: colors.subText }]}>No chats yet</Text>
+            <Text style={[styles.emptyText, { color: colors.subText }]}>
+              {searchQuery ? 'No chats found' : 'No chats yet'}
+            </Text>
           </View>
         }
-        contentContainerStyle={chats.length === 0 ? styles.emptyListContent : null}
+        contentContainerStyle={filteredChats.length === 0 ? styles.emptyListContent : null}
+        onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+            {
+              useNativeDriver: true,
+            }
+          )}
+        scrollEventThrottle={16}
       />
     </SafeAreaView>
   );

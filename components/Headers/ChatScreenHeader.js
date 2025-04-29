@@ -1,13 +1,34 @@
 import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native'
-import React from 'react'
+import React, { useState } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-native-responsive-screen'
 
-export default function ChatScreenHeader({colors, user, recipient, navigation, title, initiateCall}) {
+export default function ChatScreenHeader({colors, recipient, navigation, handleBlockAction, isBlockedByTargetUser, isBlocked }) {
+    const [isDropdownVisible, setIsDropdownVisible] = useState(false)
+
+    const toggleDropdown = () => {
+        setIsDropdownVisible(!isDropdownVisible);
+      };
     
-    console.log('Recipient:', recipient.name);
-    console.log('User:', user.name);
-    console.log('title:', title);
+      const handleDropdownAction = (action) => {
+        switch (action) {
+          case 'shareProfile':
+            console.log('Share Profile clicked');
+            break;
+          case 'blockUser':
+            handleBlockAction(); 
+            break;
+          case 'reportUser':
+            console.log('Report User clicked');
+            break;
+          case 'copyProfileLink':
+            console.log('Copy Profile Link clicked');
+            break;
+          default:
+            console.log('Unknown action');
+        }
+        setIsDropdownVisible(false);
+      };
 
     return (
     <View 
@@ -21,20 +42,11 @@ export default function ChatScreenHeader({colors, user, recipient, navigation, t
             borderBottomWidth: 1,
             borderBottomColor: colors.border,
         }}>
-        <TouchableOpacity onPress={() => {
-                    if (navigation.canGoBack()) {
-                    navigation.goBack();
-                    } else {
-                    // Handle the case where there's no screen to go back to
-                    console.log('No screen to go back to');
-                    // Optionally navigate to a default screen, e.g., home
-                    navigation.navigate('Home'); // Replace 'Home' with your home screen route
-                    }
-                }}
-            style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-            }}>
+        <TouchableOpacity  onPress={() => navigation.goBack()}
+        style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+        }}>
            <Ionicons name='arrow-back' color={colors.text} size={hp(3)} />
            {recipient.profilePicture ? (
                 <Image 
@@ -51,14 +63,48 @@ export default function ChatScreenHeader({colors, user, recipient, navigation, t
             <Text style={{ color: colors.text, marginLeft: hp(1.8), fontSize: hp(2)}}>{recipient.name || "Anonymous"}</Text>
         </TouchableOpacity>
 
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <TouchableOpacity onPress={() => initiateCall('voice')}>
-          <Ionicons name="call" size={hp(2.5)} color={colors.subText} />
+        <TouchableOpacity 
+           onPress={toggleDropdown} 
+           style={styles.menuButton} 
+           disabled={isBlockedByTargetUser}
+        >
+            <Ionicons name="ellipsis-vertical" size={hp(2.8)} color={colors.text} />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => initiateCall('video')}>
-          <Ionicons name="videocam" size={hp(2.5)} color={colors.subText} />
-        </TouchableOpacity>
-      </View>
+
+        {isDropdownVisible && (
+            <View style={[styles.dropdown, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <TouchableOpacity
+                style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
+                onPress={() => handleDropdownAction('blockUser')}
+                activeOpacity={0.7}
+                >
+                <Text style={[styles.dropdownText, { color: colors.text }]}>
+                    {isBlocked ? 'Unblock User' : 'Block User'}
+                </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
+                onPress={() => handleDropdownAction('shareProfile')}
+                activeOpacity={0.7}
+                >
+                <Text style={[styles.dropdownText, { color: colors.text }]}>
+                    Share Profile
+                </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
+                onPress={() => handleDropdownAction('reportUser')}
+                activeOpacity={0.7}
+                >
+                <Text style={[styles.dropdownText, { color: colors.errorText || 'red' }]}>
+                    Report User
+                </Text>
+                </TouchableOpacity>
+            </View>
+            )}
+
     </View>
   )
 }
@@ -82,4 +128,31 @@ const styles = StyleSheet.create({
         fontSize: hp(2.2),
         fontWeight: 'bold',
     },
+    dropdown: {
+        position: 'absolute',
+        top: hp(8),
+        right: hp(3),
+        width: wp(45),
+        backgroundColor: '#fff',
+        borderRadius: hp(0.5),
+        paddingVertical: hp(1),
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 5,
+        elevation: 5,
+        borderWidth: 1,
+        zIndex: 1000
+      },
+      
+      dropdownItem: {
+        paddingVertical: hp(1.5),
+        paddingHorizontal: wp(4),
+        borderBottomWidth: 1,
+      },
+      
+      dropdownText: {
+        fontSize: hp(2),
+      },
+      
 })

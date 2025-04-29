@@ -1,9 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { heightPercentageToDP as hp } from 'react-native-responsive-screen';
 
-const SecurityBottomSheet = ({ onClose, colors, user, login, updateProfile }) => {
+const SecurityBottomSheet = ({ onClose, colors, user, login, updateProfile, blockedUsers, fetchBlockedUsers, blockUser, unblockUser }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [authenticated, setAuthenticated] = useState(false);
@@ -15,6 +15,17 @@ const SecurityBottomSheet = ({ onClose, colors, user, login, updateProfile }) =>
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
+
+  // for block
+  const [blockLoading, setBlockLoading] = useState(false);
+  const [blockError, setBlockError] = useState('');
+  const [blockInput, setBlockInput] = useState('');
+
+  useEffect(() => {
+    if (authenticated && user?.token) {
+      fetchBlockedUsers();
+    }
+  }, [authenticated, user?.token, fetchBlockedUsers]);
 
   const handleAuthenticate = async () => {
     if (!password) {
@@ -82,6 +93,42 @@ const SecurityBottomSheet = ({ onClose, colors, user, login, updateProfile }) =>
       setLoading(false);
     }
   };
+
+  const handleBlockUser = async () => {
+    if (!blockInput) {
+      setBlockError('Please enter a user ID');
+      return;
+    }
+
+      setBlockLoading(true);
+      setBlockError('');
+
+      try {
+        await blockUser(blockInput); // Assuming blockInput is a user ID
+        setBlockInput('');
+        Alert.alert('Success', 'User blocked successfully');
+      } catch (err) {
+        setBlockError(err.message || 'Failed to block user');
+        console.error('Block user error:', err);
+      } finally {
+        setBlockLoading(false);
+      }
+    };
+
+    const handleUnblockUser = async (userId) => {
+      setBlockLoading(true);
+      setBlockError('');
+
+      try {
+        await unblockUser(userId);
+        Alert.alert('Success', 'User unblocked successfully');
+      } catch (err) {
+        setBlockError('Failed to unblock user');
+        console.error('Unblock user error:', err);
+      } finally {
+        setBlockLoading(false);
+      }
+    };
 
   if (!authenticated) {
     return (
@@ -248,6 +295,32 @@ const SecurityBottomSheet = ({ onClose, colors, user, login, updateProfile }) =>
           <Text style={[styles.settingText, { color: colors.text, borderBottomColor: colors.border }]}>Sessions</Text>
           <Ionicons name="chevron-forward" size={20} color={colors.text} />
         </TouchableOpacity>
+
+        <Text style={[styles.sectionTitle, { color: colors.text, marginTop: 20 }]}>
+          Blocked Users
+        </Text>
+
+        {Array.isArray(blockedUsers) && blockedUsers.length > 0 ? (
+          blockedUsers.map((blockedUser) => (
+            <View key={blockedUser._id} style={styles.settingItem}>
+              <Text style={[styles.settingText, { color: colors.text, borderBottomColor: colors.border }]}>
+                {blockedUser.username || 'Unknown User'}
+              </Text>
+              <TouchableOpacity
+                onPress={() => handleUnblockUser(blockedUser._id)}
+                disabled={blockLoading}
+              >
+                <Text style={{ color: colors.primary, fontSize: hp(1.6) }}>
+                  Unblock
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ))
+        ) : (
+          <Text style={[styles.settingText, { color: colors.subText }]}>
+            No blocked users.
+          </Text>
+        )}
       </View>
     </View>
   );

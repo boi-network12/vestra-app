@@ -16,6 +16,7 @@ import PremiumModal from './Modals/PremiumModal';
 import MonetizationModal from './BottomSheets/MonetizationBottomSheet';
 import NotificationsModal from './Modals/NotificationsModal';
 import AccessibilityModal from './BottomSheets/AccessibilityBottomSheet';
+import { useBlock } from '../../../contexts/BlockContext';
 
 
 const settingsList = [
@@ -56,6 +57,7 @@ export default function Settings() {
   const [searchQuery, setSearchQuery] = useState('');
   const navigation = useNavigation();
   const { user, login, updateProfile, deleteAccount } = useAuth();
+  const { blockedUsers, fetchBlockedUsers, blockUser, unblockUser } = useBlock();
   const { isDark, toggleTheme } = useTheme();
   const colors = getThemeColors(isDark);
   const [modalVisible, setModalVisible] = useState(false);
@@ -94,7 +96,12 @@ export default function Settings() {
                   setModalVisible(false)} 
                   colors={colors} user={user} 
                   login={login}
-                  updateProfile={updateProfile} />;
+                  updateProfile={updateProfile} 
+                  blockedUsers={blockedUsers}
+                  fetchBlockedUsers={fetchBlockedUsers} 
+                  blockUser={blockUser} 
+                  unblockUser={unblockUser}
+                />;
       case 'PremiumModal':
         return <PremiumModal 
                    onClose={() => 

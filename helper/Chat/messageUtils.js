@@ -3,6 +3,18 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { encryptMessage } from '../../utils/encryption';
 import config from '../../config';
 
+const retryRequest = async (fn, retries = 3, delay = 1000) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (i === retries - 1) throw error;
+      console.log(`Retry ${i + 1}/${retries} failed: ${error.message}`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+};
+
 export const fetchLinkPreview = async (url, token) => {
   try {
     const response = await axios.post(
@@ -79,13 +91,15 @@ export const uploadFiles = async (selectedMedia, token, setUploading, setSelecte
         });
       }
 
-      const response = await axios.post(`${config.API_URL}/messages/upload`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          Authorization: `Bearer ${token}`,
-        },
-        timeout: 30000,
-      });
+      const response = await retryRequest(() =>
+        axios.post(`${config.API_URL}/messages/upload`, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            Authorization: `Bearer ${token}`,
+          },
+          timeout: 60000, 
+        })
+      );
 
       uploadedFiles = response.data.map((file, index) => ({
         ...file,

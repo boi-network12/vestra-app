@@ -19,7 +19,7 @@ const MediaUploadModal = ({ visible, onClose, onSelectMedia, onSelectDocument, c
           {['photo', 'video', 'document'].map(type => (
             <TouchableOpacity
               key={type}
-              style={styles.mediaOption}
+              style={[styles.mediaOption, { backgroundColor: colors.background }]}
               onPress={() => (type === 'document' ? onSelectDocument() : onSelectMedia(type))}
             >
               <Ionicons
