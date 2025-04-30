@@ -197,14 +197,11 @@ export function PostProvider({ children }) {
           break;
         case 'userProfile':
           filter = 'user_visible';
-          if (!targetUserId) {
-            setError('User ID is required for userProfile context');
-            return;
-          }
+          // targetUserId is already set from userId argument
           break;
         default:
-          setError('Invalid context');
-          return;
+          filter = 'all';
+          targetUserId = null;
       }
   
       // Only reset if explicitly requested or context changes

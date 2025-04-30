@@ -68,13 +68,13 @@ export default function Posts({
   );
 
   useEffect(() => {
-    if (!userId && (context === 'profile' || context === 'userProfile')) {
+    if ((context === 'profile' || context === 'userProfile') && !userId) {
       console.warn(`userId is required for ${context} context`);
       return;
     }
   
-    // Only fetch if context or userId changes
-    memoizedFetchPostsByContext(context, userId, true);
+    // Only pass userId for profile/userProfile, otherwise null
+    memoizedFetchPostsByContext(context, (context === 'profile' || context === 'userProfile') ? userId : null, true);
   }, [context, userId, memoizedFetchPostsByContext]);
 
 

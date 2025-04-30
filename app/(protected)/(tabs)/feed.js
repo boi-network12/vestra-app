@@ -96,7 +96,7 @@ export default function Feed() {
         followStatuses={followStatuses}
         setFollowStatuses={setFollowStatuses}
         fetchPostsByContext={fetchPostsByContext}
-        userId={user._id || null}
+        userId={null}
       />
 
     </SafeAreaView>
