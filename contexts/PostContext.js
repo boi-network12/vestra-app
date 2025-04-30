@@ -121,65 +121,60 @@ export function PostProvider({ children }) {
 
   // Fetch posts with pagination
   const fetchPosts = useCallback(
-  async (filter = 'all', reset = false, userId = null) => {
-    if (!token) {
-      setError('You must be logged in to fetch posts.');
-      return;
-    }
-
-    if (loading && !reset) {
-      return; // Prevent concurrent fetches
-    }
-
-    try {
-      let currentPage = reset ? 1 : page;
-
-      if (reset) {
-        setRefreshing(true);
-        setPosts([]);
-        setPage(1);
-        setHasMore(true);
-      } else {
-        setLoading(true);
+    async (filter = 'all', reset = false, userId = null) => {
+      if (!token) {
+        setError('You must be logged in to fetch posts.');
+        return;
       }
-
-      const params = {
-        page: currentPage,
-        limit: 10,
-        _t: new Date().getTime(),
-        filter,
-        ...(userId && { userId }), // Only include userId if provided
-      };
-
-      console.log('Fetch posts params:', params);
-
-      const response = await axios.get(`${config.API_URL}/api/post`, {
-        params,
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const { docs, hasNextPage, page: responsePage } = response.data.data;
-
-      console.log(`Fetched ${docs.length} posts for filter: ${filter}, userId: ${userId}`);
-
-      setPosts((prevPosts) => (reset ? docs : [...prevPosts, ...docs]));
-      setHasMore(hasNextPage);
-      setPage(responsePage + 1);
-    } catch (err) {
-      console.error('Fetch posts error:', err);
-      setError(err.response?.data?.message || 'Failed to fetch posts');
-    } finally {
-      setLoading(false);
-      if (reset) {
-        setRefreshing(false);
+  
+      if (loading && !reset) {
+        return; // Prevent concurrent fetches
       }
-    }
-  },
-  [token, page, loading]
-);
-
+  
+      try {
+        const currentPage = reset ? 1 : page;
+  
+        if (reset) {
+          setRefreshing(true);
+          setPosts([]);
+          setPage(1);
+          setHasMore(true);
+        } else {
+          setLoading(true);
+        }
+  
+        const params = {
+          page: currentPage,
+          limit: 10,
+          _t: Date.now(),
+          filter,
+          ...(userId && { userId }),
+        };
+  
+        const response = await axios.get(`${config.API_URL}/api/post`, {
+          params,
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+  
+        const { docs, hasNextPage, page: responsePage } = response.data.data;
+  
+        setPosts((prevPosts) => (reset ? docs : [...prevPosts, ...docs]));
+        setHasMore(hasNextPage);
+        setPage(responsePage + 1);
+      } catch (err) {
+        console.error('Fetch posts error:', err);
+        setError(err.response?.data?.message || 'Failed to fetch posts');
+      } finally {
+        setLoading(false);
+        if (reset) {
+          setRefreshing(false);
+        }
+      }
+    },
+    [token] // Remove page and loading from dependencies
+  );
    // New function to fetch posts by context
    const fetchPostsByContext = useCallback(
     async (context, userId = null, reset = false) => {
@@ -187,21 +182,21 @@ export function PostProvider({ children }) {
         setError('You must be logged in to fetch posts.');
         return;
       }
-
+  
       let filter;
       let targetUserId = userId;
-
+  
       switch (context) {
         case 'feed':
-          filter = 'all'; 
+          filter = 'all';
           targetUserId = null;
           break;
         case 'profile':
-          filter = 'user_all'; 
+          filter = 'user_all';
           targetUserId = user._id;
           break;
         case 'userProfile':
-          filter = 'user_visible'; 
+          filter = 'user_visible';
           if (!targetUserId) {
             setError('User ID is required for userProfile context');
             return;
@@ -211,22 +206,20 @@ export function PostProvider({ children }) {
           setError('Invalid context');
           return;
       }
-
-      console.log(`Fetching posts for context: ${context}, userId: ${targetUserId}, reset: ${reset}`);
-
-      // Reset posts if explicitly requested or switching context
+  
+      // Only reset if explicitly requested or context changes
       if (reset || currentContext !== context) {
         setPosts([]);
         setPage(1);
         setHasMore(true);
         setCurrentContext(context);
       }
-
+  
       await fetchPosts(filter, reset || currentContext !== context, targetUserId);
     },
-    [token, fetchPosts, user, currentContext]
+    [token, user, currentContext, fetchPosts]
   );
-
+  
   // Delete a post
   const deletePost = async (postId) => {
     try {
