@@ -1,16 +1,25 @@
-import { View, Text, SafeAreaView, Platform, StatusBar as RNStatusBar, ScrollView, RefreshControl, Alert, TouchableOpacity } from 'react-native'
-import React, { useEffect, useLayoutEffect, useState } from 'react'
-import { useLocalSearchParams, useNavigation } from 'expo-router'
+import {
+  View,
+  SafeAreaView,
+  Platform,
+  StatusBar as RNStatusBar,
+  Alert,
+  TouchableOpacity,
+  Text,
+} from 'react-native';
+import React, { useEffect, useLayoutEffect, useState } from 'react';
+import { useLocalSearchParams, useNavigation } from 'expo-router';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { getThemeColors } from '../../../utils/theme';
 import { StatusBar } from 'expo-status-bar';
-import ProfileHeader from '../../../components/Headers/ProfileHeader';
-import ProfilePosts from '../../../components/Profile/ProfilePosts';
-import ProfileViewDetail from '../../../components/UsersDetails/ProfileView';
 import { useFollow } from '../../../contexts/FriendContext';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useBlock } from '../../../contexts/BlockContext';
 import UserProfileHeader from '../../../components/Headers/UserProfileHeader';
+import { usePost } from '../../../contexts/PostContext';
+import { usePostInteraction } from '../../../contexts/PostInteractionContext';
+import { useScroll } from '../../../contexts/ScrollContext';
+import UserProfilePosts from '../../../components/UsersDetails/UserProfilePosts';
 
 export default function UserProfile() {
   const { user, followStatus } = useLocalSearchParams();
@@ -22,10 +31,41 @@ export default function UserProfile() {
   const [currentFollowStatus, setCurrentFollowStatus] = useState(followStatus || 'not_following');
   const [refreshing, setRefreshing] = useState(false);
   const { user: currentUser, refreshUser } = useAuth();
-  const { blockUser, unblockUser, blockedUsers, checkBlockStatus, fetchBlockedUsers, isBlockedByUser } = useBlock();
+  const {
+    blockUser,
+    unblockUser,
+    blockedUsers,
+    checkBlockStatus,
+    fetchBlockedUsers,
+    isBlockedByUser,
+  } = useBlock();
   const [isBlocked, setIsBlocked] = useState(false);
   const [isBlockedByTargetUser, setIsBlockedByTargetUser] = useState(false);
-
+  const {
+    posts,
+    fetchPostsByContext,
+    loading,
+    hasMore,
+    loadMorePosts,
+    refreshing: postRefreshing,
+    addRepost,
+    setPosts,
+    updatePostLikeStatus,
+    updatePostBookmark,
+    deletePost,
+  } = usePost();
+  const {
+    likePost,
+    unlikePost,
+    sharePost,
+    repostPost,
+    incrementViewCount,
+    bookmarkPost,
+    removeBookmark,
+    unrepostPost,
+  } = usePostInteraction();
+  const { scrollY } = useScroll();
+  const [followStatuses, setFollowStatuses] = useState({});
 
   if (!currentUser || !currentUser._id) {
     console.error('Auth user is undefined or missing _id');
@@ -41,15 +81,12 @@ export default function UserProfile() {
         setIsBlockedByTargetUser(blockedByUser);
       } catch (error) {
         console.error('Error checking block status:', error.message);
-        // Optionally show an alert or set a fallback state
         Alert.alert('Error', 'Failed to load block status. Please try again.');
       }
     };
     checkBlockedStatus();
   }, [userDetails._id, checkBlockStatus, isBlockedByUser]);
 
-
-  // Fetch the actual follow status when the user profile loads or changes
   useEffect(() => {
     const fetchFollowStatus = async () => {
       try {
@@ -67,9 +104,14 @@ export default function UserProfile() {
         console.error('Error fetching follow status:', error);
       }
     };
-
     fetchFollowStatus();
   }, [userDetails._id, checkFollowStatus]);
+
+  useEffect(() => {
+    if (userDetails?._id && !isBlocked && !isBlockedByTargetUser) {
+      fetchPostsByContext('userProfile', userDetails._id, true);
+    }
+  }, [userDetails._id, isBlocked, isBlockedByTargetUser, fetchPostsByContext]);
 
   const handleBlockAction = async () => {
     console.log('Blocking user with ID:', userDetails._id);
@@ -103,12 +145,10 @@ export default function UserProfile() {
     }
   };
 
-
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      refreshUser()
-      // Optionally refresh user data or follow status here
+      await refreshUser();
       const status = await checkFollowStatus(userDetails._id);
       setCurrentFollowStatus(
         status.status === 'blocked'
@@ -121,14 +161,17 @@ export default function UserProfile() {
       );
       const isUserBlocked = await checkBlockStatus(userDetails._id);
       setIsBlocked(isUserBlocked);
+      if (!isUserBlocked && !isBlockedByTargetUser) {
+        await fetchPostsByContext('userProfile', userDetails._id, true);
+      }
     } catch (error) {
       console.error('Error refreshing data:', error);
+      Alert.alert('Error', 'Failed to refresh profile data');
     } finally {
       setRefreshing(false);
     }
   };
-  
-     
+
   const handleFollowAction = async () => {
     try {
       if (currentFollowStatus === 'following') {
@@ -147,6 +190,7 @@ export default function UserProfile() {
       }
     } catch (error) {
       console.error('Error in follow action:', error);
+      Alert.alert('Error', 'Failed to update follow status');
     }
   };
 
@@ -157,20 +201,23 @@ export default function UserProfile() {
     });
   }, [navigation]);
 
-   // Render "You blocked this user" view
-   const renderBlockedView = () => (
-    <View style={{
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: 20,
-      backgroundColor: colors.background,
-    }}>
-      <Text style={{
-        fontSize: 18,
-        color: colors.text,
-        marginBottom: 20,
-      }}>
+  const renderBlockedView = () => (
+    <View
+      style={{
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+        backgroundColor: colors.background,
+      }}
+    >
+      <Text
+        style={{
+          fontSize: 18,
+          color: colors.text,
+          marginBottom: 20,
+        }}
+      >
         You blocked this user
       </Text>
       <TouchableOpacity
@@ -182,108 +229,116 @@ export default function UserProfile() {
           borderRadius: 5,
         }}
       >
-        <Text style={{
-          color: colors.background,
-          fontSize: 16,
-          fontWeight: '600',
-        }}>
+        <Text
+          style={{
+            color: colors.background,
+            fontSize: 16,
+            fontWeight: '600',
+          }}
+        >
           Unblock
         </Text>
       </TouchableOpacity>
     </View>
   );
 
-  // UserProfile.js
-const renderBlockedByUserView = () => (
-  <View
-    style={{
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: 20,
-      backgroundColor: colors.background,
-    }}
-  >
-    <Text
+  const renderBlockedByUserView = () => (
+    <View
       style={{
-        fontSize: 18,
-        color: colors.text,
-        marginBottom: 20,
-        textAlign: 'center',
-      }}
-    >
-      This user has blocked you. You cannot view their profile.
-    </Text>
-    <TouchableOpacity
-      onPress={onRefresh}
-      style={{
-        backgroundColor: colors.primary,
-        paddingVertical: 10,
-        paddingHorizontal: 20,
-        borderRadius: 5,
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+        backgroundColor: colors.background,
       }}
     >
       <Text
         style={{
-          color: colors.background,
-          fontSize: 16,
-          fontWeight: '600',
+          fontSize: 18,
+          color: colors.text,
+          marginBottom: 20,
+          textAlign: 'center',
         }}
       >
-        Refresh
+        This user has blocked you. You cannot view their profile.
       </Text>
-    </TouchableOpacity>
-  </View>
-);
+      <TouchableOpacity
+        onPress={onRefresh}
+        style={{
+          backgroundColor: colors.primary,
+          paddingVertical: 10,
+          paddingHorizontal: 20,
+          borderRadius: 5,
+        }}
+      >
+        <Text
+          style={{
+            color: colors.background,
+            fontSize: 16,
+            fontWeight: '600',
+          }}
+        >
+          Refresh
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
 
   return (
     <SafeAreaView
-       style={{
+      style={{
         flex: 1,
         paddingTop: Platform.OS === 'android' ? RNStatusBar.currentHeight : 0,
         backgroundColor: colors.background,
-        }}
+      }}
     >
-        <StatusBar style='auto'/>
-        <UserProfileHeader
-            title={user.name}
-            onBackPress={() => navigation.goBack()}
-            colors={colors}
-            handleBlockAction={handleBlockAction}
-            isBlocked={isBlocked}
-            isBlockedByTargetUser={isBlockedByTargetUser}
+      <StatusBar style="auto" />
+      <UserProfileHeader
+        title={userDetails.name} // Fixed: Use userDetails.name instead of user.name
+        onBackPress={() => navigation.goBack()}
+        colors={colors}
+        handleBlockAction={handleBlockAction}
+        isBlocked={isBlocked}
+        isBlockedByTargetUser={isBlockedByTargetUser}
+      />
+      {isBlocked ? (
+        renderBlockedView()
+      ) : isBlockedByTargetUser ? (
+        renderBlockedByUserView()
+      ) : (
+        <UserProfilePosts
+          userId={userDetails._id}
+          onRefresh={onRefresh}
+          posts={posts}
+          fetchPostsByContext={fetchPostsByContext}
+          loading={loading}
+          hasMore={hasMore}
+          loadMorePosts={loadMorePosts}
+          refreshing={refreshing || postRefreshing}
+          colors={colors}
+          scrollY={scrollY}
+          scrollEventThrottle={16}
+          addRepost={addRepost}
+          likePost={likePost}
+          unlikePost={unlikePost}
+          sharePost={sharePost}
+          repostPost={repostPost}
+          incrementViewCount={incrementViewCount}
+          updatePostLikeStatus={updatePostLikeStatus}
+          setPosts={setPosts}
+          updatePostBookmark={updatePostBookmark}
+          bookmarkPost={bookmarkPost}
+          removeBookmark={removeBookmark}
+          deletePost={deletePost}
+          user={currentUser}
+          unrepostPost={unrepostPost}
+          followStatuses={followStatuses}
+          setFollowStatuses={setFollowStatuses}
+          userDetails={userDetails} // Pass userDetails for ProfileViewDetail
+          handleFollowAction={handleFollowAction}
+          currentFollowStatus={currentFollowStatus}
         />
-        
-        {isBlocked ? (
-          renderBlockedView()
-        ) : isBlockedByTargetUser  ?  (
-          renderBlockedByUserView()
-        ) : (
-          <ScrollView style={{ flex: 1 }}
-            refreshControl={
-              <RefreshControl
-                  refreshing={refreshing}
-                  onRefresh={onRefresh}
-                  tintColor={colors.primary}
-              />
-            }
-          >
-            <ProfileViewDetail
-                user={userDetails}
-                colors={colors}
-                navigation={navigation}
-                handleFollowAction={handleFollowAction}
-                currentFollowStatus={currentFollowStatus}
-                currentUser={currentUser}
-            />
-  
-              <ProfilePosts
-                  user={user}
-                  colors={colors}
-              />
-            
-          </ScrollView>
-        )}
+      )}
     </SafeAreaView>
-  )
+  );
 }

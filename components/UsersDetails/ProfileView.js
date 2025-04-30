@@ -1,12 +1,10 @@
 import { StyleSheet, View, Text, TouchableOpacity, Image, Linking, Alert } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
-import React, { useState } from 'react';
+import React from 'react';
 import { router } from 'expo-router';
-import { heightPercentageToDP as hp, widthPercentageToDP as wp } from "react-native-responsive-screen"
+import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-native-responsive-screen';
 
 const ProfileViewDetail = ({ user, colors, handleFollowAction, currentFollowStatus, currentUser }) => {
-
-
   if (!user || !user._id) {
     console.error('ProfileViewDetail: Invalid user prop', user);
     return (
@@ -18,19 +16,16 @@ const ProfileViewDetail = ({ user, colors, handleFollowAction, currentFollowStat
 
   // Calculate age from dateOfBirth
   const calculateAge = (birthDate) => {
+    if (!birthDate) return 'N/A';
     const today = new Date();
     const birth = new Date(birthDate);
     let age = today.getFullYear() - birth.getFullYear();
     const monthDiff = today.getMonth() - birth.getMonth();
-    
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
       age--;
     }
-    
     return age;
   };
-
-  
 
   const getFollowButtonState = () => {
     if (currentFollowStatus === 'blocked') {
@@ -38,68 +33,55 @@ const ProfileViewDetail = ({ user, colors, handleFollowAction, currentFollowStat
         text: 'Blocked',
         style: { backgroundColor: colors.errorBg, borderColor: colors.errorText },
         textColor: colors.errorText,
-        disabled: true
+        disabled: true,
       };
     }
-  
     if (currentFollowStatus === 'following') {
       return {
         text: 'Following',
-        style: { 
-          backgroundColor: colors.card, 
-          borderWidth: 1, 
-          borderColor: colors.border 
+        style: {
+          backgroundColor: colors.card,
+          borderWidth: 1,
+          borderColor: colors.border,
         },
         textColor: colors.text,
-        disabled: false
+        disabled: false,
       };
     }
-  
     if (currentFollowStatus === 'follow_back') {
       return {
         text: 'Follow Back',
         style: { backgroundColor: colors.primary },
         textColor: '#FFFFFF',
-        disabled: false
+        disabled: false,
       };
     }
-  
-    // Default (not following)
     return {
       text: 'Follow',
       style: { backgroundColor: colors.primary },
       textColor: '#FFFFFF',
-      disabled: false
+      disabled: false,
     };
   };
-  
+
   const buttonState = getFollowButtonState();
-  
-  //:
+
   const handleMessagePress = () => {
-    if (!currentUser || !currentUser._id) {
-      console.error('Current user is undefined or missing _id');
+    if (!currentUser || !currentUser._id || !user || !user._id) {
+      console.error('handleMessagePress: Invalid user or currentUser', { currentUser, user });
       return;
     }
-
-    if (!user || !user._id) {
-      console.error('Current user is undefined or missing _id');
-      return;
-    }
-
     console.log('Navigating to chat with:', user.name);
-    
-    const participants  = [user._id, currentUser._id].sort();
+    const participants = [user._id, currentUser._id].sort();
     const chatId = participants.join('_');
-
     router.navigate({
       pathname: `(protected)/(tabs)/chats/${chatId}`,
       params: {
         chatId,
-        recipient: JSON.stringify(user)
-      }
-    })
-  }  
+        recipient: JSON.stringify(user),
+      },
+    });
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -107,22 +89,20 @@ const ProfileViewDetail = ({ user, colors, handleFollowAction, currentFollowStat
       <View style={styles.headerContainer}>
         <View style={styles.avatarContainer}>
           {user.profilePicture ? (
-            <Image 
-              source={{ uri: user.profilePicture }} 
-              style={styles.avatar}
-            />
+            <Image source={{ uri: user.profilePicture }} style={styles.avatar} />
           ) : (
             <View style={[styles.avatarPlaceholder, { backgroundColor: colors.primary }]}>
               <Text style={styles.initials}>
-              {user.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase() : 'U'}
+                {user.name ? user.name.split(' ').map((n) => n[0]).join('').toUpperCase() : 'U'}
               </Text>
             </View>
           )}
         </View>
-        
         <View style={styles.statsContainer}>
           <View style={styles.statItem}>
-            <Text style={[styles.statNumber, { color: colors.text }]}>{Array.isArray(user.followers) ? user.followers.length : 0}</Text>
+            <Text style={[styles.statNumber, { color: colors.text }]}>
+              {Array.isArray(user.followers) ? user.followers.length : 0}
+            </Text>
             <Text style={[styles.statLabel, { color: colors.subText }]}>Followers</Text>
           </View>
           <View style={styles.statItem}>
@@ -130,80 +110,81 @@ const ProfileViewDetail = ({ user, colors, handleFollowAction, currentFollowStat
             <Text style={[styles.statLabel, { color: colors.subText }]}>Posts</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={[styles.statNumber, { color: colors.text }]}>{Array.isArray(user.following) ? user.following.length : 0}</Text>
+            <Text style={[styles.statNumber, { color: colors.text }]}>
+              {Array.isArray(user.following) ? user.following.length : 0}
+            </Text>
             <Text style={[styles.statLabel, { color: colors.subText }]}>Following</Text>
           </View>
         </View>
       </View>
 
       {/* User Info */}
-         <View style={[styles.infoContainer, { backgroundColor: colors.card }]}>
-         <View style={styles.nameContainer}>
-           <Text style={[styles.name, { color: colors.text }]}>{user.name}</Text>
-           {user.verified && (
-             <Ionicons name="checkmark-circle" size={20} color={colors.primary} style={styles.verifiedIcon} />
-           )}
-         </View>
-         
-         <Text style={[styles.username, { color: colors.subText }]}>@{user.username}</Text>
-         
-         {user.bio ? (
-           <Text style={[styles.bio, { color: colors.text }]}>{user.bio}</Text>
-         ) : (
-           <Text style={[styles.bioPlaceholder, { color: colors.subText }]}>No bio yet</Text>
-         )}
-
-        {user.link ? (
-            <TouchableOpacity 
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
-                onPress={() => Linking.openURL(user.link.startsWith('http') ? user.link : `https://${user.link}`)}
-            >
-                {/* Website icon (you could replace this with actual favicon fetching later) */}
-                <Image 
-                source={{ uri: `https://www.google.com/s2/favicons?domain=${user.link.replace(/(^\w+:|^)\/\//, '')}` }}
-                style={{ width: 16, height: 16 }}
-                />
-                <Text style={[styles.link, { color: colors.primary }]}>
-                {user.link
-                    .replace(/(^\w+:|^)\/\//, '') // Remove http/https
-                    .split('/')[0] // Remove everything after domain
-                    .replace('www.', '')} {/* Remove www if present */}
-                </Text>
-            </TouchableOpacity>
+      <View style={[styles.infoContainer, { backgroundColor: colors.card }]}>
+        <View style={styles.nameContainer}>
+          <Text style={[styles.name, { color: colors.text }]}>{user.name}</Text>
+          {user.verified && (
+            <Ionicons name="checkmark-circle" size={20} color={colors.primary} style={styles.verifiedIcon} />
+          )}
+        </View>
+        <Text style={[styles.username, { color: colors.subText }]}>@{user.username}</Text>
+        {user.bio ? (
+          <Text style={[styles.bio, { color: colors.text }]}>{user.bio}</Text>
         ) : (
-        <Text style={[styles.bioPlaceholder, { color: colors.subText }]}>No link yet</Text>
+          <Text style={[styles.bioPlaceholder, { color: colors.subText }]}>No bio yet</Text>
         )}
-         
-         <View style={styles.detailsContainer}>
-           <View style={styles.detailItem}>
-             <Ionicons name="location-outline" size={16} color={colors.subText} />
-             <Text style={[styles.detailText, { color: colors.subText }]}>{user.country || "No Detail"}</Text>
-           </View>
-           
-           <View style={styles.detailItem}>
-             <MaterialCommunityIcons name="cake-variant-outline" size={16} color={colors.subText} />
-             <Text style={[styles.detailText, { color: colors.subText }]}>
-               {calculateAge(user.dateOfBirth)} years
-             </Text>
-           </View>
-           
-           <View style={styles.detailItem}>
-             <Feather name="calendar" size={16} color={colors.subText} />
-             <Text style={[styles.detailText, { color: colors.subText }]}>
-               Joined {new Date(user.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-             </Text>
-           </View>
-         </View>
-       </View>
+        {user.link ? (
+          <TouchableOpacity
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+            onPress={() =>
+              Linking.openURL(user.link.startsWith('http') ? user.link : `https://${user.link}`)
+            }
+          >
+            <Image
+              source={{
+                uri: `https://www.google.com/s2/favicons?domain=${user.link.replace(
+                  /(^\w+:|^)\/\//,
+                  ''
+                )}`,
+              }}
+              style={{ width: 16, height: 16 }}
+            />
+            <Text style={[styles.link, { color: colors.primary }]}>
+              {user.link
+                .replace(/(^\w+:|^)\/\//, '')
+                .split('/')[0]
+                .replace('www.', '')}
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <Text style={[styles.bioPlaceholder, { color: colors.subText }]}>No link yet</Text>
+        )}
+        <View style={styles.detailsContainer}>
+          <View style={styles.detailItem}>
+            <Ionicons name="location-outline" size={16} color={colors.subText} />
+            <Text style={[styles.detailText, { color: colors.subText }]}>
+              {user.country || 'No Detail'}
+            </Text>
+          </View>
+          <View style={styles.detailItem}>
+            <MaterialCommunityIcons name="cake-variant-outline" size={16} color={colors.subText} />
+            <Text style={[styles.detailText, { color: colors.subText }]}>
+              {calculateAge(user.dateOfBirth)} years
+            </Text>
+          </View>
+          <View style={styles.detailItem}>
+            <Feather name="calendar" size={16} color={colors.subText} />
+            <Text style={[styles.detailText, { color: colors.subText }]}>
+              Joined{' '}
+              {new Date(user.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            </Text>
+          </View>
+        </View>
+      </View>
 
       {/* Action Buttons */}
       <View style={styles.actionsContainer}>
-        <TouchableOpacity 
-          style={[
-            styles.actionButton, 
-            buttonState.style,
-            buttonState.disabled && { opacity: 0.6 }
-          ]}
+        <TouchableOpacity
+          style={[styles.actionButton, buttonState.style, buttonState.disabled && { opacity: 0.6 }]}
           onPress={handleFollowAction}
           disabled={buttonState.disabled}
         >
@@ -211,20 +192,16 @@ const ProfileViewDetail = ({ user, colors, handleFollowAction, currentFollowStat
             {buttonState.text}
           </Text>
         </TouchableOpacity>
-
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.actionButton2, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}
           onPress={handleMessagePress}
         >
-          <Text style={styles.actionButtonText}>
-            <Ionicons name='chatbubble-outline' size={20} color={colors.subText} />
-          </Text>
+          <Ionicons name="chatbubble-outline" size={20} color={colors.subText} />
         </TouchableOpacity>
-        
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.actionButton2, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}
         >
-          <Text style={[styles.actionButtonText, { color: colors.text }]}><Ionicons name='qr-code-outline' size={20} color={colors.subText} /></Text>
+          <Ionicons name="qr-code-outline" size={20} color={colors.subText} />
         </TouchableOpacity>
       </View>
     </View>
@@ -233,7 +210,7 @@ const ProfileViewDetail = ({ user, colors, handleFollowAction, currentFollowStat
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    paddingTop: hp(2),
   },
   headerContainer: {
     flexDirection: 'row',
@@ -302,7 +279,7 @@ const styles = StyleSheet.create({
     marginBottom: hp(1),
   },
   link: {
-    fontSize: hp(1.2)
+    fontSize: hp(1.7),
   },
   bioPlaceholder: {
     fontSize: hp(1.7),
@@ -345,45 +322,9 @@ const styles = StyleSheet.create({
     width: hp(10),
   },
   actionButtonText: {
-    color: 'white',
     fontWeight: '500',
     fontSize: hp(1.8),
-  },
-  section: {
-    padding: hp(1.8),
-    marginHorizontal: 15,
-    borderRadius: 15,
-    marginBottom: 15,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 15,
-  },
-  aboutItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  aboutText: {
-    marginLeft: 15,
-    fontSize: hp(1.8),
-  },
-  settingItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-  },
-  settingLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  settingText: {
-    marginLeft: 15,
-    fontSize: 16,
   },
 });
 
 export default ProfileViewDetail;
-// other user profile view

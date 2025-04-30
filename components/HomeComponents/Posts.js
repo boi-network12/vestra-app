@@ -1,6 +1,6 @@
 // components/HomeComponents/Posts.js
 import { View, Text, FlatList, TouchableOpacity, Image, StyleSheet, Animated } from 'react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { router } from 'expo-router';
 import { heightPercentageToDP as hp, widthPercentageToDP as wp } from "react-native-responsive-screen"
 import Icon from 'react-native-vector-icons/Ionicons'; 
@@ -8,6 +8,8 @@ import { Alert } from 'react-native';
 import ActionModal from '../SharedComponents/ActionModal';
 import ShareModal from '../../modal/ShareModal';
 import RepostModal from '../../modal/RepostModal';
+import { PostProvider } from '../../contexts/PostContext';
+import PostSkeleton from './PostSkeleton';
 
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 
@@ -18,10 +20,12 @@ const VideoPlaceholder = ({ uri }) => (
 );
 
 export default function Posts({ 
+    context = 'feed',
     filter,
     onRefresh,
     posts,
     fetchPosts,
+    fetchPostsByContext,
     loading,
     hasMore,
     loadMorePosts,
@@ -42,7 +46,10 @@ export default function Posts({
     removeBookmark,
     deletePost,
     user,
-    unrepostPost
+    unrepostPost,
+    setFollowStatuses,
+    followStatuses,
+    userId
  }) {
   const [modalVisible, setModalVisible] = useState(false);
   const [shareModalVisible, setShareModalVisible] = useState(false);
@@ -51,18 +58,40 @@ export default function Posts({
   const [repostModalVisible, setRepostModalVisible] = useState(false);
 
 
+  // Memoize the fetchPosts function to prevent recreation
+  const memoizedFetchPostsByContext = useCallback(
+    (ctx, targetUserId, reset) => {
+      console.log(`Fetching posts for context: ${ctx}, userId: ${targetUserId}, reset: ${reset}`);
+      fetchPostsByContext(ctx, targetUserId, reset);
+    },
+    [fetchPostsByContext]
+  );
 
   useEffect(() => {
-    fetchPosts(filter);
-  }, [filter]);
+    // Skip fetching if userId is missing for profile/userProfile contexts
+    if ((context === 'profile' || context === 'userProfile') && !userId) {
+      console.warn(`userId is required for ${context} context`);
+      return;
+    }
+
+    // Fetch posts based on context
+    memoizedFetchPostsByContext(context, userId, true); // Reset posts on initial fetch
+  }, [context, userId, memoizedFetchPostsByContext]);
+
 
   useEffect(() => {
     const ids = posts.map((post) => post._id);
     const uniqueIds = new Set(ids);
     if (ids.length !== uniqueIds.size) {
-      console.warn('Duplicate post IDs detected:', ids);
+      
     }
   }, [posts]);
+
+  const renderSkeleton = () => {
+    return Array(3)
+      .fill()
+      .map((_, index) => <PostSkeleton key={`skeleton-${index}`} colors={colors} />);
+  };
 
   // Add this function
 const handleSharePress = (post) => {
@@ -315,12 +344,54 @@ const handleSharePress = (post) => {
     });
   };
 
+  const navigateToProfile = (postUser) => {
+    if (!postUser || !postUser._id) {
+      console.error('navigateToProfile: Invalid user object', postUser);
+      return;
+    }
+  
+    // Determine if the user is the current user
+    const isCurrentUser = postUser._id === user._id;
+  
+    // Determine follow status (mirroring MessageItem logic)
+    const status = followStatuses[postUser._id]?.status || 'not_following';
+    const isFollowingYou = followStatuses[postUser._id]?.isFollowingYou || false;
+  
+    let followStatus;
+    if (status === 'blocked') {
+      followStatus = 'blocked';
+    } else if (status === 'following') {
+      followStatus = 'following';
+    } else if (isFollowingYou) {
+      followStatus = 'follow_back';
+    } else {
+      followStatus = 'not_following';
+    }
+  
+    // Use the populated postUser object directly, ensuring password is excluded
+    const userData = { ...postUser };
+  
+    // Ensure password is not included (though backend already excludes it)
+    if (userData.password) {
+      delete userData.password;
+    }
+  
+    // Navigate to appropriate route
+    router.push({
+      pathname: isCurrentUser ? 'profile' : 'users-profile',
+      params: {
+        user: JSON.stringify(userData),
+        followStatus,
+      },
+    });
+  };
+
   // New renderMedia function to handle multiple media items
   const renderMedia = (mediaItems) => {
     if (!mediaItems || mediaItems.length === 0) return null;
   
-    const images = mediaItems.filter(item => item.type === 'image' || item.url.match(/\.(jpg|jpeg|png|gif)$/i));
-    const videos = mediaItems.filter(item => item.type === 'video' || item.url.match(/\.(mp4|mov)$/i));
+    const images = mediaItems.filter(item => item && (item.type === 'image' || item.url.match(/\.(jpg|jpeg|png|gif)$/i)));
+    const videos = mediaItems.filter(item => item && (item.type === 'video' || item.url.match(/\.(mp4|mov)$/i)));
   
     // Twitter-like image grid logic
     const renderImageGrid = () => {
@@ -395,6 +466,35 @@ const handleSharePress = (post) => {
     );
   };
   
+  const renderQuotedMedia = (mediaItems) => {
+    if (!mediaItems || mediaItems.length === 0) return null;
+
+    // Select only the first media item
+    const firstMedia = mediaItems[0];
+    if (!firstMedia) return null;
+
+    const isImage = firstMedia.type === 'image' || firstMedia.url.match(/\.(jpg|jpeg|png|gif)$/i);
+    const isVideo = firstMedia.type === 'video' || firstMedia.url.match(/\.(mp4|mov)$/i);
+
+    if (isImage) {
+      return (
+        <Image
+          source={{ uri: firstMedia.url }}
+          style={styles.quotedMedia}
+          resizeMode="cover"
+        />
+      );
+    } else if (isVideo) {
+      return (
+        <VideoPlaceholder
+          uri={firstMedia.url}
+          style={styles.quotedMedia}
+        />
+      );
+    }
+
+    return null;
+  };
 
   const renderPost = ({ item }) => (
     <TouchableOpacity
@@ -413,16 +513,26 @@ const handleSharePress = (post) => {
           <Icon name="ellipsis-horizontal" size={hp(2)} color={colors.subText} />
         </TouchableOpacity>
         {item.user.profilePicture ? (
-          <Image source={{ uri: item.user.profilePicture }} style={styles.avatar} />
+          <TouchableOpacity
+             onPress={() => navigateToProfile(item.user)}
+          >
+             <Image source={{ uri: item.user.profilePicture }} style={styles.avatar} />
+          </TouchableOpacity>
         ) : (
-          <View style={[styles.avatarPlaceholder, { backgroundColor: colors.primary }]}>
+          <TouchableOpacity 
+             onPress={() => navigateToProfile(item.user)}
+             style={[styles.avatarPlaceholder, { backgroundColor: colors.primary }]}>
             <Text style={styles.initials}>
               {item.user.name ? item.user.name.split(' ').map(n => n[0]).join('').toUpperCase() : 'U'}
             </Text>
-          </View>
+          </TouchableOpacity>
         )}
         <View>
-          <Text style={[styles.username, { color: colors.text }]}>{item.user.username}</Text>
+          <TouchableOpacity
+             onPress={() => navigateToProfile(item.user)}
+          >
+            <Text style={[styles.username, { color: colors.text }]}>{item.user.username}</Text>
+          </TouchableOpacity>
           <Text style={[styles.location, { color: colors.subText }]}>
             {item.location?.name || 'Unknown Location'}
           </Text>
@@ -431,17 +541,21 @@ const handleSharePress = (post) => {
 
       {item.quote && item.quote.user ? (
       <View style={[styles.quoteContainer, { borderLeftColor: colors.primary }]}>
-        <Text style={[styles.quoteLabel, { color: colors.subText }]}>
-          Quoted from @{item.quote.user.username || 'Unknown User'}
-        </Text>
+        <TouchableOpacity onPress={() => navigateToProfile(item.quote.user)}>
+          <Text style={[styles.quoteLabel, { color: colors.subText }]}>
+            Quoted from @{item.quote.user.username || 'Unknown User'}
+          </Text>
+        </TouchableOpacity>
         <Text style={[styles.content, { color: colors.text }]}>{item.quote.content || ''}</Text>
-        {renderMedia(item.quote.media)}
+        {renderQuotedMedia(item.quote.media || [])}
       </View>
     ) : item.repost && item.repost.user ? (
       <View style={[styles.repostContainer, { borderLeftColor: colors.primary }]}>
-        <Text style={[styles.repostLabel, { color: colors.subText }]}>
-          Reposted from @{item.repost.user.username || 'Unknown User'}
-        </Text>
+        <TouchableOpacity onPress={() => navigateToProfile(item.quote.user)}>
+          <Text style={[styles.repostLabel, { color: colors.subText }]}>
+            Reposted from @{item.repost.user.username || 'Unknown User'}
+          </Text> 
+        </TouchableOpacity>
         <Text style={[styles.content, { color: colors.text }]}>{item.repost.content || ''}</Text>
         {renderMedia(item.repost.media)}
       </View>
@@ -518,24 +632,30 @@ const handleSharePress = (post) => {
     </TouchableOpacity>
   );
 
+  
+
   return (
     <>
-      <AnimatedFlatList
-        data={posts}
-        renderItem={renderPost}
-        keyExtractor={(item, index) => item._id ? `${item._id}-${index}` : `posts-${index}`}
-        onEndReached={() => hasMore && !loading && loadMorePosts(filter)}
-        onEndReachedThreshold={0.5}
-        refreshing={refreshing}
-        onRefresh={onRefresh}
-        contentContainerStyle={styles.listContainer}
-        showsVerticalScrollIndicator={false}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: true }
-        )}
-        scrollEventThrottle={scrollEventThrottle}
-      />
+      {loading && posts.length === 0 ? (
+        <View style={styles.listContainer}>{renderSkeleton()}</View>
+      ) : (
+        <AnimatedFlatList
+          data={posts}
+          renderItem={renderPost}
+          keyExtractor={(item, index) => item._id ? `${item._id}-${index}` : `posts-${index}`}
+          onEndReached={() => hasMore && !loading && loadMorePosts(context === 'feed' ? filter : 'user')}
+          onEndReachedThreshold={0.5}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          contentContainerStyle={styles.listContainer}
+          showsVerticalScrollIndicator={false}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+            { useNativeDriver: true }
+          )}
+          scrollEventThrottle={scrollEventThrottle}
+        />
+      )}
 
       {/* modal */}
       {selectedPost && (
@@ -609,7 +729,7 @@ const handleSharePress = (post) => {
           colors={colors}
           onRepost={() => handleRepostToggle(selectedPostForShare._id)}
           postId={selectedPostForShare._id}
-        />
+        /> 
       )}
     </>
   );
@@ -785,5 +905,11 @@ videoContainer: {
 videoPlaceholderText: {
   color: '#fff',
   fontSize: wp(4),
+},
+quotedMedia: {
+  width: wp(40), // Smaller width
+  height: hp(15), // Smaller height
+  borderRadius: 8,
+  marginTop: hp(1),
 },
 });

@@ -1,4 +1,4 @@
-import { Platform, SafeAreaView, StyleSheet, Text, View, StatusBar as RNStatusBar, ScrollView, TouchableOpacity, Image, TextInput } from 'react-native'
+import { Platform, SafeAreaView, StyleSheet, Text, View, StatusBar as RNStatusBar, ScrollView, TouchableOpacity, Image, TextInput, ActivityIndicator } from 'react-native'
 import React, { useState, useRef, useEffect } from 'react'
 import { StatusBar } from 'expo-status-bar'
 import { useNavigation, router } from 'expo-router';
@@ -47,7 +47,7 @@ export default function Posts() {
 
   if (!user?.token) {
     Alert.alert('Error', 'You must be logged in to fetch friends.');
-    return;
+    return null;
   }
 
   // Debounced search function
@@ -92,9 +92,12 @@ export default function Posts() {
   };
 
   const handleSubmitPost = async () => {
+    if (loading) return; // Prevent multiple submissions
     setLoading(true);
+
     if (content.trim().length === 0 && media.length === 0) {
       Alert.alert('Error', 'Please add content or media to your post.');
+      setLoading(false);
       return;
     }
 
@@ -117,7 +120,7 @@ export default function Posts() {
         media,
         visibility,
         isNSFW,
-        taggedUsers: taggedUsers.map(user => user._id), 
+        taggedUsers: taggedUsers.map(user => user._id),
       };
 
       if (locationName.trim()) {
@@ -125,7 +128,6 @@ export default function Posts() {
           name: locationName.trim(),
         };
       }
-
 
       await createPost(postData);
 
@@ -139,6 +141,8 @@ export default function Posts() {
       setShowFriendsDropdown(false);
       textInputRef.current?.clear();
 
+      router.back()
+      
       Alert.alert('Success', 'Post created successfully!');
     } catch (err) {
       console.error('Post Submission Error:', err.response?.data || err.message);
@@ -153,7 +157,7 @@ export default function Posts() {
         Alert.alert('Error', errorMessage);
       }
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   };
 
@@ -276,16 +280,20 @@ export default function Posts() {
 
 
   const removeMedia = (index) => {
-    const newMedia = [...media];
-    newMedia.splice(index, 1);
-    setMedia(newMedia);
+    if (!loading) {
+      const newMedia = [...media];
+      newMedia.splice(index, 1);
+      setMedia(newMedia);
+    }
   };
 
   const toggleVisibility = () => {
-    const options = ['public', 'friends', 'private'];
-    const currentIndex = options.indexOf(visibility);
-    const nextIndex = (currentIndex + 1) % options.length;
-    setVisibility(options[nextIndex]);
+    if (!loading) {
+      const options = ['public', 'friends', 'private'];
+      const currentIndex = options.indexOf(visibility);
+      const nextIndex = (currentIndex + 1) % options.length;
+      setVisibility(options[nextIndex]);
+    }
   };
 
   const getVisibilityIcon = () => {
@@ -341,7 +349,7 @@ export default function Posts() {
         router={router}
         user={user}
         handleSubmitPost={handleSubmitPost}
-        disabled={content.trim().length === 0 && media.length === 0 && loading}
+        disabled={content.trim().length === 0 && media.length === 0 || loading}
       />
 
       <ScrollView 
@@ -391,6 +399,7 @@ export default function Posts() {
             onChangeText={handleTextChange}
             textAlignVertical="top"
             autoFocus
+            editable={!loading}
           />
 
           {/* Media preview */}
@@ -517,6 +526,13 @@ export default function Posts() {
                   </Text>
                 )}
               </ScrollView>
+            </View>
+          )}
+
+          {loading && (
+            <View style={styles.loadingOverlay}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={[styles.loadingText, { color: colors.text }]}>Posting...</Text>
             </View>
           )}
         </View>
@@ -707,5 +723,21 @@ initials: {
     fontSize: hp(1.8),
     padding: hp(1.5),
     textAlign: 'center',
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)', // Semi-transparent overlay
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10, // Ensure it covers other elements
+  },
+  loadingText: {
+    marginTop: hp(1),
+    fontSize: hp(2),
+    fontWeight: '500',
   },
 });

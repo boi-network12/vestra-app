@@ -1,4 +1,4 @@
-import { View, Text, SafeAreaView, Platform, StatusBar as RNStatusBar, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native'
+import { View, Text, SafeAreaView, Platform, StatusBar as RNStatusBar, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native'
 import React, { useEffect, useLayoutEffect } from 'react'
 import { useNotifications } from '../../../contexts/NotificationContext';
 import { useNavigation, router } from 'expo-router';
@@ -10,6 +10,8 @@ import NotificationHeader from '../../../components/Headers/NotificationHeader';
 import { Ionicons } from '@expo/vector-icons';
 import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-native-responsive-screen';
 import moment from "moment";
+import NotificationSkeleton from '../../../components/Noti/NotificationSkeleton';
+
 
 export default function Notification() {
     const {
@@ -41,6 +43,48 @@ export default function Notification() {
       }
     }, [user?._id]);
 
+    const handleDeleteNotification = (notificationId) => {
+      Alert.alert(
+        'Delete Notification',
+        'Are you sure you want to delete this notification?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await deleteNotification(notificationId);
+              } catch (err) {
+                Alert.alert('Error', 'Failed to delete notification.');
+              }
+            },
+          },
+        ]
+      );
+    };
+
+    const handleDeleteAllNotifications = () => {
+      Alert.alert(
+        'Delete All Notifications',
+        'Are you sure you want to delete all notifications?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete All',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await deleteAllNotifications();
+              } catch (err) {
+                Alert.alert('Error', 'Failed to delete all notifications.');
+              }
+            },
+          },
+        ]
+      );
+    };
+
     if (loading) {
       return (
         <SafeAreaView
@@ -52,7 +96,7 @@ export default function Notification() {
             justifyContent: "center"
           }}
         >
-          <ActivityIndicator />
+          <NotificationSkeleton colors={colors} />
         </SafeAreaView>
       );
     }
@@ -66,7 +110,22 @@ export default function Notification() {
             backgroundColor: colors.background,
           }}
         >
-          <Text style={{color: colors.error }}>{error}</Text>
+          <StatusBar style="auto" />
+          <NotificationHeader
+            user={user}
+            colors={colors}
+            router={router}
+            unreadCount={unreadCount}
+          />
+          <View style={styles.errorContainer}>
+            <Text style={{ color: colors.errorText }}>{error}</Text>
+            <TouchableOpacity
+              style={[styles.retryButton, { backgroundColor: colors.primary }]}
+              onPress={fetchNotifications}
+            >
+              <Text style={{ color: colors.text, fontSize: hp(1.8), fontWeight: '500' }}>Retry</Text>
+            </TouchableOpacity>
+          </View>
         </SafeAreaView>
       );
     }
@@ -76,18 +135,23 @@ export default function Notification() {
       if (!notification.read) {
         markAsRead(notification._id);
       }
-
-      if (notification.type === 'tag') {
+    
+      if (notification.type === 'tag' || notification.type === 'like' || notification.type === 'comment' || notification.type === 'share' || notification.type === 'repost' || notification.type === 'quote') {
         if (!notification.relatedItem?.post) {
-          console.warn('Malformed tag notification', notification);
-          return; 
+          console.warn('Malformed notification', notification);
+          return;
         }
       }
     
       // Navigate based on notification type
-      if (notification.type === 'tag' && notification.relatedItem?.post) {
+      if (
+        ['tag', 'like', 'comment', 'share', 'repost', 'quote'].includes(
+          notification.type
+        ) &&
+        notification.relatedItem?.post
+      ) {
         const { post, user: postUser } = notification.relatedItem;
-        // For post tags, navigate to the post view with all necessary parameters
+        // For post-related notifications, navigate to the post view with all necessary parameters
         router.push({
           pathname: `/post-view/${post._id}`,
           params: {
@@ -105,13 +169,13 @@ export default function Notification() {
             createdAt: post.createdAt || new Date().toISOString(),
             userId: postUser._id,
             userFullName: postUser.name,
-            userVerified: postUser.verified ? 'true' : 'false'
-          }
+            userVerified: postUser.verified ? 'true' : 'false',
+          },
         });
       } else if (notification.url) {
         // Handle other notification types (user profiles, etc.)
         const navigationParams = {
-          pathname: notification.url
+          pathname: notification.url,
         };
     
         if (notification.url.includes('users-profile')) {
@@ -129,12 +193,14 @@ export default function Notification() {
               followers: notification.sender.followers,
               blockedUsers: notification.sender.blockedUsers,
               verified: notification.sender.verified,
-              ActiveIndicator: notification.sender.ActiveIndicator
+              ActiveIndicator: notification.sender.ActiveIndicator,
             }),
-            ...(notification.followStatus && { followStatus: notification.followStatus })
+            ...(notification.followStatus && {
+              followStatus: notification.followStatus,
+            }),
           };
         }
-        
+    
         router.push(navigationParams);
       }
     };
@@ -230,6 +296,7 @@ export default function Notification() {
                 <TouchableOpacity 
                   onPress={markAllAsRead}
                   disabled={unreadCount === 0}
+                  style={styles.headerActionButton}
                 >
                   <Text style={[
                     styles.actionText, 
@@ -239,6 +306,23 @@ export default function Notification() {
                     }
                   ]}>
                     Mark all as read
+                  </Text>
+                </TouchableOpacity>
+                  <TouchableOpacity
+                  onPress={handleDeleteAllNotifications}
+                  disabled={notifications.length === 0}
+                  style={styles.headerActionButton}
+                >
+                  <Text
+                    style={[
+                      styles.actionText,
+                      {
+                        color: notifications.length === 0 ? colors.subText : colors.errorText,
+                        opacity: notifications.length === 0 ? 0.5 : 1,
+                      },
+                    ]}
+                  >
+                    Delete all
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -267,6 +351,7 @@ const styles = StyleSheet.create({
     paddingVertical: hp(1.5),
     paddingHorizontal: wp(4),
     borderBottomWidth: 1,
+    justifyContent: 'space-between',
   },
   previewText: {
     fontSize: hp(1.6),
@@ -294,6 +379,9 @@ const styles = StyleSheet.create({
   },
   headerActions: {
     padding: hp(1.5),
+    flexDirection: 'row',
+     justifyContent: 'flex-end',
+     gap: hp(2),
     borderBottomWidth: 1,
     alignItems: 'flex-end',
   },

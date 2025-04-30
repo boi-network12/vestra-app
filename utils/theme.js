@@ -11,6 +11,7 @@ export const lightColors = {
   errorBg: '#FBEAE9',        // Light error background
   errorText: '#E0245E',      // Light error text
   modalBg: 'rgba(0, 0, 0, 0.3)', 
+  skeleton: '#e0e0e0', 
 };
 
 export const darkColors = {
@@ -26,6 +27,7 @@ export const darkColors = {
   errorBg: '#2C0B0E',        // Dark error background
   errorText: '#F4212E',      // Dark error text
   modalBg: 'rgba(0, 0, 0, 0.7)',
+  skeleton: '#333',
 };
 
 export const getThemeColors = (isDark) => (isDark ? darkColors : lightColors);

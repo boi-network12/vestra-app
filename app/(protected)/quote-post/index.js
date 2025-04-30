@@ -37,8 +37,8 @@ export default function QuotePostScreen() {
     const renderMedia = (mediaItems) => {
       if (!mediaItems || mediaItems.length === 0) return null;
     
-      const images = mediaItems.filter(item => item.type === 'image' || item.url.match(/\.(jpg|jpeg|png|gif)$/i));
-      const videos = mediaItems.filter(item => item.type === 'video' || item.url.match(/\.(mp4|mov)$/i));
+      const images = mediaItems.filter(item => item && (item.type === 'image' || item.url.match(/\.(jpg|jpeg|png|gif)$/i)));
+      const videos = mediaItems.filter(item => item && (item.type === 'video' || item.url.match(/\.(mp4|mov)$/i)));
     
       const renderImageGrid = () => {
         if (images.length === 1) {
@@ -183,6 +183,14 @@ export default function QuotePostScreen() {
     }
   };
 
+  if (!post) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <Text style={{ color: colors.text }}>Loading...</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
@@ -231,15 +239,15 @@ export default function QuotePostScreen() {
         {repostData && repostData.user ? (
           <>
             <Text style={[styles.repostLabel, { color: colors.subText }]}>
-              Reposted from @{repostData.user.username}
+              Reposted from {renderMedia(post.media || [])}
             </Text>
             <Text style={[styles.quotedContent, { color: colors.text }]}>{repostData.content}</Text>
-            {repostData.media && renderMedia(repostData.media)}
+            {renderMedia(post.repost.media || [])}
           </>
         ) : (
           <>
             <Text style={[styles.quotedContent, { color: colors.text }]}>{content}</Text>
-            {parsedMedia.length > 0 && renderMedia(parsedMedia)}
+            {renderMedia(post.media || [])}
           </>
         )}
       </View>

@@ -17,10 +17,12 @@ export default function Feed() {
   const { isDark } = useTheme();
   const colors = getThemeColors(isDark);
   const navigation = useNavigation();
-  const { posts, fetchPosts, loading, hasMore, loadMorePosts, refreshing, refreshPosts, addRepost, setPosts, updatePostLikeStatus, updatePostBookmark, deletePost } = usePost();
+  const { posts, fetchPosts, loading, hasMore, loadMorePosts, refreshing, refreshPosts, addRepost, setPosts, updatePostLikeStatus, updatePostBookmark, deletePost, fetchPostsByContext } = usePost();
   const [activeTab, setActiveTab] = useState('forYou');
   const { likePost, unlikePost, sharePost, repostPost, incrementViewCount, bookmarkPost, removeBookmark, unrepostPost } = usePostInteraction();
   const { scrollY } = useScroll(); 
+
+  const [followStatuses, setFollowStatuses] = useState({}); 
 
 
   // Get status bar height
@@ -29,8 +31,9 @@ export default function Feed() {
     };
 
     useEffect(() => {
-      fetchPosts(activeTab === 'forYou' ? 'all' : 'following');
-    }, [activeTab]);
+      // Fetch posts for feed context with appropriate filter
+      fetchPostsByContext('feed', null, true);
+    }, [activeTab, fetchPostsByContext]);
   
     const handleRefresh = () => {
       refreshPosts(activeTab === 'forYou' ? 'all' : 'following');
@@ -64,6 +67,7 @@ export default function Feed() {
       </View>
 
       <Posts
+        context="feed"
         filter={activeTab === 'forYou' ? 'all' : 'following'}
         onRefresh={handleRefresh}
         colors={colors}
@@ -89,6 +93,10 @@ export default function Feed() {
         user={user}
         deletePost={deletePost}
         unrepostPost={unrepostPost}
+        followStatuses={followStatuses}
+        setFollowStatuses={setFollowStatuses}
+        fetchPostsByContext={fetchPostsByContext}
+        userId={user._id}
       />
 
     </SafeAreaView>

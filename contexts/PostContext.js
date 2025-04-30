@@ -1,5 +1,5 @@
 // contexts/PostContext.js
-import React, { createContext, useContext, useState, useEffect, Platform } from 'react';
+import React, { createContext, useContext, useState, useEffect, Platform, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import axios from 'axios';
 import * as ImagePicker from 'expo-image-picker';
@@ -19,6 +19,7 @@ export function PostProvider({ children }) {
   const [selectedPost, setSelectedPost] = useState(null);
   const [friends, setFriends] = useState([]);
   const [filteredFriends, setFilteredFriends] = useState([]);
+  const [currentContext, setCurrentContext] = useState(null); 
 
   const token = user?.token
 
@@ -119,55 +120,112 @@ export function PostProvider({ children }) {
   };
 
   // Fetch posts with pagination
-  const fetchPosts = async (filter = 'all', reset = false) => {
+  const fetchPosts = useCallback(
+  async (filter = 'all', reset = false, userId = null) => {
     if (!token) {
       setError('You must be logged in to fetch posts.');
       return;
     }
 
+    if (loading && !reset) {
+      return; // Prevent concurrent fetches
+    }
+
     try {
+      let currentPage = reset ? 1 : page;
+
       if (reset) {
+        setRefreshing(true);
+        setPosts([]);
         setPage(1);
         setHasMore(true);
-        setRefreshing(true);
-      } else if (loading) {
-        return;
       } else {
         setLoading(true);
       }
 
+      const params = {
+        page: currentPage,
+        limit: 10,
+        _t: new Date().getTime(),
+        filter,
+        ...(userId && { userId }), // Only include userId if provided
+      };
+
+      console.log('Fetch posts params:', params);
+
       const response = await axios.get(`${config.API_URL}/api/post`, {
-        params: {
-          page: reset ? 1 : page,
-          limit: 10,
-          filter,
-          _t: new Date().getTime()
-        },
+        params,
         headers: {
-          'Authorization': `Bearer ${token}`
-        }
+          Authorization: `Bearer ${token}`,
+        },
       });
 
-      const { docs, hasNextPage, page: currentPage } = response.data.data;
+      const { docs, hasNextPage, page: responsePage } = response.data.data;
 
-      if (reset) {
-        setPosts(docs);
-      } else {
-        setPosts(prevPosts => [...prevPosts, ...docs]);
-      }
+      console.log(`Fetched ${docs.length} posts for filter: ${filter}, userId: ${userId}`);
 
+      setPosts((prevPosts) => (reset ? docs : [...prevPosts, ...docs]));
       setHasMore(hasNextPage);
-      setPage(currentPage + 1);
+      setPage(responsePage + 1);
     } catch (err) {
+      console.error('Fetch posts error:', err);
       setError(err.response?.data?.message || 'Failed to fetch posts');
     } finally {
+      setLoading(false);
       if (reset) {
         setRefreshing(false);
-      } else {
-        setLoading(false);
       }
     }
-  };
+  },
+  [token, page, loading]
+);
+
+   // New function to fetch posts by context
+   const fetchPostsByContext = useCallback(
+    async (context, userId = null, reset = false) => {
+      if (!token) {
+        setError('You must be logged in to fetch posts.');
+        return;
+      }
+
+      let filter;
+      let targetUserId = userId;
+
+      switch (context) {
+        case 'feed':
+          filter = 'all'; 
+          targetUserId = null;
+          break;
+        case 'profile':
+          filter = 'user_all'; 
+          targetUserId = user._id;
+          break;
+        case 'userProfile':
+          filter = 'user_visible'; 
+          if (!targetUserId) {
+            setError('User ID is required for userProfile context');
+            return;
+          }
+          break;
+        default:
+          setError('Invalid context');
+          return;
+      }
+
+      console.log(`Fetching posts for context: ${context}, userId: ${targetUserId}, reset: ${reset}`);
+
+      // Reset posts if explicitly requested or switching context
+      if (reset || currentContext !== context) {
+        setPosts([]);
+        setPage(1);
+        setHasMore(true);
+        setCurrentContext(context);
+      }
+
+      await fetchPosts(filter, reset || currentContext !== context, targetUserId);
+    },
+    [token, fetchPosts, user, currentContext]
+  );
 
   // Delete a post
   const deletePost = async (postId) => {
@@ -266,14 +324,14 @@ export function PostProvider({ children }) {
   };
 
   // Refresh posts
-  const refreshPosts = async (filter = 'all') => {
-    await fetchPosts(filter, true);
+  const refreshPosts = async (filter = 'all', userId = null) => {
+    await fetchPosts(filter, true, userId);
   };
-
+  
   // Load more posts
-  const loadMorePosts = async (filter = 'all') => {
+  const loadMorePosts = async (filter = 'all', userId = null) => {
     if (hasMore && !loading) {
-      await fetchPosts(filter);
+      await fetchPosts(filter, false, userId);
     }
   };
 
@@ -334,7 +392,12 @@ export function PostProvider({ children }) {
   };
 
   const addRepost = (repostData) => {
-    setPosts(prevPosts => [repostData, ...prevPosts]);
+    setPosts(prevPosts => {
+      if (repostData.quote) {
+        return [repostData, ...prevPosts]
+      }
+      return [repostData, ...prevPosts]
+    })
   };
 
   const updatePostLikeStatus = (postId, isLiked, likeCount) => {
@@ -370,6 +433,7 @@ export function PostProvider({ children }) {
         filteredFriends, 
         createPost,
         fetchPosts,
+        fetchPostsByContext,
         deletePost,
         reportPost,
         getPost,

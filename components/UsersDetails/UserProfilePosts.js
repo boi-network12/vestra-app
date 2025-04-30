@@ -1,16 +1,24 @@
 import {
   View,
   Text,
+  Animated,
   TouchableOpacity,
   Image,
   StyleSheet,
   Alert,
+  VirtualizedList,
 } from 'react-native';
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { router } from 'expo-router';
 import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-native-responsive-screen';
 import Icon from 'react-native-vector-icons/Ionicons';
+import ActionModal from '../SharedComponents/ActionModal';
+import ShareModal from '../../modal/ShareModal';
+import RepostModal from '../../modal/RepostModal';
 import PostSkeleton from '../HomeComponents/PostSkeleton';
+import ProfileViewDetail from '../../components/UsersDetails/ProfileView';
+
+const AnimatedVirtualizedList = Animated.createAnimatedComponent(VirtualizedList);
 
 const VideoPlaceholder = ({ uri }) => (
   <View style={styles.videoContainer}>
@@ -18,7 +26,7 @@ const VideoPlaceholder = ({ uri }) => (
   </View>
 );
 
-export default function ProfilePosts({
+export default function UserProfilePosts({
   userId,
   onRefresh,
   posts,
@@ -46,21 +54,24 @@ export default function ProfilePosts({
   unrepostPost,
   followStatuses,
   setFollowStatuses,
-  context,
-  setModalVisible,
-  setShareModalVisible,
-  setRepostModalVisible,
-  setSelectedPost,
-  setSelectedPostForShare,
-  handleLike,
+  userDetails, // Added for ProfileViewDetail
+  handleFollowAction,
+  currentFollowStatus,
 }) {
+  const [modalVisible, setModalVisible] = useState(false);
+  const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [selectedPost, setSelectedPost] = useState(null);
+  const [selectedPostForShare, setSelectedPostForShare] = useState(null);
+  const [repostModalVisible, setRepostModalVisible] = useState(false);
+
   useEffect(() => {
     if (!userId) {
-      console.warn('userId is required for ProfilePosts');
+      console.warn('userId is required for UserProfilePosts');
       return;
     }
-    fetchPostsByContext('profile', userId, true);
-  }, [userId]);
+    // Only fetch posts on mount or when userId changes
+    fetchPostsByContext('userProfile', userId, true);
+  }, [userId]); // Removed fetchPostsByContext from dependencies
 
   const renderSkeleton = () =>
     Array(3)
@@ -70,6 +81,173 @@ export default function ProfilePosts({
   const handleSharePress = (post) => {
     setSelectedPostForShare(post);
     setShareModalVisible(true);
+  };
+
+  const handleBookmark = async (postId, isBookmarked) => {
+    try {
+      if (isBookmarked) {
+        await removeBookmark(postId);
+        updatePostBookmark(postId, false);
+      } else {
+        await bookmarkPost(postId);
+        updatePostBookmark(postId, true);
+      }
+    } catch (err) {
+      console.error('Bookmark error:', err);
+      Alert.alert('Error', 'Failed to update bookmark status');
+    }
+  };
+
+  const handleDelete = async (postId) => {
+    try {
+      await deletePost(postId);
+      Alert.alert('Success', 'Post deleted successfully');
+    } catch (err) {
+      console.error('Delete error:', err);
+      Alert.alert('Error', 'Failed to delete post');
+    }
+  };
+
+  const getPostActions = (post) => {
+    const actions = [];
+    if (post.user._id === user._id) {
+      actions.push({
+        label: 'Delete Post',
+        icon: 'trash-outline',
+        onPress: () => handleDelete(post._id),
+        danger: true,
+      });
+    }
+    const hasReposted = posts.some(
+      (p) => p.repost?._id === post._id && p.user._id === user._id
+    );
+    actions.push({
+      label: hasReposted ? 'Unrepost' : 'Repost',
+      icon: 'repeat-outline',
+      onPress: hasReposted ? () => handleUnrepost(post._id) : () => handleRepost(post._id),
+    });
+    return actions;
+  };
+
+  const handleLike = async (postId, isCurrentlyLiked) => {
+    try {
+      updatePostLikeStatus(
+        postId,
+        !isCurrentlyLiked,
+        (posts.find((p) => p._id === postId)?.likeCount || 0) + (isCurrentlyLiked ? -1 : 1)
+      );
+      let response;
+      if (isCurrentlyLiked) {
+        response = await unlikePost(postId);
+      } else {
+        response = await likePost(postId);
+      }
+      updatePostLikeStatus(postId, response.data.isLiked, response.data.likeCount);
+    } catch (err) {
+      console.error('Like error:', err);
+      updatePostLikeStatus(
+        postId,
+        isCurrentlyLiked,
+        posts.find((p) => p._id === postId)?.likeCount || 0
+      );
+      Alert.alert('Error', err.response?.data?.message || 'Failed to update like status');
+    }
+  };
+
+  const handleShare = async (postId) => {
+    try {
+      const shareData = { content: '', visibility: 'public' };
+      await sharePost(postId, shareData);
+      setPosts((prevPosts) =>
+        prevPosts.map((post) =>
+          post._id === postId
+            ? { ...post, shareCount: (post.shareCount || 0) + 1 }
+            : post
+        )
+      );
+      Alert.alert('Success', 'Post shared successfully');
+    } catch (err) {
+      console.error('Share error:', err);
+      Alert.alert('Error', 'Failed to share post');
+    }
+  };
+
+  const handleUnrepost = async (postId) => {
+    try {
+      await unrepostPost(postId);
+      setPosts((prevPosts) =>
+        prevPosts.filter((post) => !(post.repost?._id === postId && post.user._id === user._id))
+      );
+      setPosts((prevPosts) =>
+        prevPosts.map((post) =>
+          post._id === postId
+            ? { ...post, repostCount: Math.max(0, (post.repostCount || 0) - 1) }
+            : post
+        )
+      );
+      Alert.alert('Success', 'Repost removed successfully');
+    } catch (err) {
+      console.error('Unrepost error:', err);
+      Alert.alert('Error', 'Failed to unrepost');
+    }
+  };
+
+  const handleRepost = async (postId) => {
+    try {
+      const repostData = { content: '', visibility: 'public' };
+      const response = await repostPost(postId, repostData);
+      addRepost(response.data);
+      setPosts((prevPosts) =>
+        prevPosts.map((post) =>
+          post._id === postId
+            ? { ...post, repostCount: (post.repostCount || 0) + 1 }
+            : post
+        )
+      );
+      Alert.alert('Success', 'Post reposted successfully');
+    } catch (err) {
+      console.error('Repost error:', err);
+      Alert.alert('Error', 'Failed to repost');
+    }
+  };
+
+  const hasReposted = (post) =>
+    posts.some((p) => p.repost?._id === post._id && p.user._id === user._id && !p.isDeleted);
+
+  const handleRepostToggle = async (postId) => {
+    const post = posts.find((p) => p._id === postId);
+    const isReposted = hasReposted(post);
+    try {
+      if (isReposted) {
+        await unrepostPost(postId);
+        setPosts((prevPosts) =>
+          prevPosts.filter((p) => !(p.repost?._id === postId && p.user._id === user._id))
+        );
+        setPosts((prevPosts) =>
+          prevPosts.map((p) =>
+            p._id === postId
+              ? { ...p, repostCount: Math.max(0, (post.repostCount || 0) - 1) }
+              : p
+          )
+        );
+        Alert.alert('Success', 'Repost removed successfully');
+      } else {
+        const repostData = { content: '', visibility: 'public' };
+        const response = await repostPost(postId, repostData);
+        addRepost(response.data);
+        setPosts((prevPosts) =>
+          prevPosts.map((p) =>
+            p._id === postId
+              ? { ...p, repostCount: (post.repostCount || 0) + 1 }
+              : p
+          )
+        );
+        Alert.alert('Success', 'Post reposted successfully');
+      }
+    } catch (err) {
+      console.error(isReposted ? 'Unrepost error:' : 'Repost error:', err);
+      Alert.alert('Error', isReposted ? 'Failed to unrepost' : 'Failed to repost');
+    }
   };
 
   const navigateToPostView = (item) => {
@@ -212,11 +390,11 @@ export default function ProfilePosts({
       <View style={styles.mediaContainer}>
         {images.length > 0 && renderImageGrid()}
         {videos.length > 0 && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.videoScroll}>
+          <View style={styles.videoScroll}>
             {videos.map((item, index) => (
               <VideoPlaceholder key={index} uri={item.url} style={styles.video} />
             ))}
-          </ScrollView>
+          </View>
         )}
       </View>
     );
@@ -244,7 +422,17 @@ export default function ProfilePosts({
     return null;
   };
 
-  const renderPost = (item) => (
+  const renderHeader = () => (
+    <ProfileViewDetail
+      user={userDetails}
+      colors={colors}
+      handleFollowAction={handleFollowAction}
+      currentFollowStatus={currentFollowStatus}
+      currentUser={user}
+    />
+  );
+
+  const renderPost = ({ item }) => (
     <TouchableOpacity
       style={[styles.postContainer, { backgroundColor: colors.card }]}
       onPress={() => navigateToPostView(item)}
@@ -348,7 +536,7 @@ export default function ProfilePosts({
             {item.commentCount}
           </Text>
         </TouchableOpacity>
-        <View className="flex-row">
+        <View style={{ flexDirection: 'row' }}>
           <TouchableOpacity
             style={styles.interactionButton}
             onPress={() => handleBookmark(item._id, item.bookmarks?.includes(user._id))}
@@ -379,18 +567,108 @@ export default function ProfilePosts({
     </TouchableOpacity>
   );
 
+  // Safeguard against undefined or null posts
+  if (!posts || !Array.isArray(posts)) {
+    return (
+      <View style={styles.listContainer}>
+        {loading ? renderSkeleton() : <Text style={{ color: colors.text }}>No posts available</Text>}
+      </View>
+    );
+  }
+
   return (
-    <View style={styles.listContainer}>
+    <>
       {loading && posts.length === 0 ? (
-        renderSkeleton()
+        <View style={styles.listContainer}>{renderSkeleton()}</View>
       ) : (
-        posts.map((post, index) => (
-          <View key={`${post._id}-${index}`}>
-            {renderPost(post)}
-          </View>
-        ))
+        <AnimatedVirtualizedList
+          data={posts}
+          renderItem={renderPost}
+          keyExtractor={(item, index) => (item._id ? `${item._id}-${index}` : `posts-${index}`)}
+          getItemCount={(data) => data.length}
+          getItem={(data, index) => data[index]}
+          onEndReached={() => hasMore && !loading && loadMorePosts('userProfile', userId)}
+          onEndReachedThreshold={0.5}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          contentContainerStyle={styles.listContainer}
+          showsVerticalScrollIndicator={false}
+          ListHeaderComponent={renderHeader}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+            { useNativeDriver: true }
+          )}
+          scrollEventThrottle={scrollEventThrottle}
+        />
       )}
-    </View>
+      {selectedPost && (
+        <>
+          <ActionModal
+            isVisible={modalVisible}
+            onClose={() => {
+              setModalVisible(false);
+              setSelectedPost(null);
+            }}
+            actions={getPostActions(selectedPost)}
+            colors={colors}
+            title="Post Options"
+          />
+          <ShareModal
+            visible={shareModalVisible}
+            onClose={() => {
+              setShareModalVisible(false);
+              setSelectedPostForShare(null);
+            }}
+            colors={colors}
+            onRepost={() => {
+              handleRepost(selectedPostForShare._id);
+              setShareModalVisible(false);
+            }}
+            onBookmark={() => {
+              handleBookmark(
+                selectedPostForShare._id,
+                selectedPostForShare.bookmarks?.includes(user._id)
+              );
+              setShareModalVisible(false);
+            }}
+            isBookmarked={selectedPostForShare?.bookmarks?.includes(user._id)}
+            onShareDirect={() => {
+              Alert.alert('Direct Message', 'This would open direct messages');
+              setShareModalVisible(false);
+            }}
+            postUrl={`https://yourapp.com/post-view/${selectedPostForShare?._id}`}
+            onQuote={() => {
+              router.push({
+                pathname: 'quote-post',
+                params: {
+                  id: selectedPostForShare._id,
+                  content: selectedPostForShare.content,
+                  username: selectedPostForShare.user.username,
+                  media: JSON.stringify(selectedPostForShare.media),
+                  repost: selectedPostForShare.repost
+                    ? JSON.stringify(selectedPostForShare.repost)
+                    : null,
+                },
+              });
+              setShareModalVisible(false);
+            }}
+          />
+          <RepostModal
+            visible={repostModalVisible}
+            onClose={() => {
+              setRepostModalVisible(false);
+              setSelectedPostForShare(null);
+            }}
+            colors={colors}
+            onRepost={() => {
+              handleRepostToggle(selectedPostForShare._id);
+              setRepostModalVisible(false);
+            }}
+            postId={selectedPostForShare._id}
+          />
+        </>
+      )}
+    </>
   );
 }
 
@@ -443,12 +721,6 @@ const styles = StyleSheet.create({
     lineHeight: hp(2.5),
     marginBottom: hp(1.5),
   },
-  media: {
-    width: '100%',
-    height: hp(35),
-    borderRadius: 12,
-    marginBottom: hp(1.5),
-  },
   interactionBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -466,10 +738,21 @@ const styles = StyleSheet.create({
     marginBottom: hp(0.5),
     fontStyle: 'italic',
   },
-  quoteMedia: {
-    width: '100%',
-    height: hp(25),
-    borderRadius: 12,
+  repostContainer: {
+    paddingLeft: wp(3),
+    borderLeftWidth: 2,
+    marginTop: hp(1),
+    marginBottom: hp(1.5),
+  },
+  repostLabel: {
+    fontSize: wp(3.5),
+    marginBottom: hp(0.5),
+    fontStyle: 'italic',
+  },
+  quotedMedia: {
+    width: wp(40),
+    height: hp(15),
+    borderRadius: 8,
     marginTop: hp(1),
   },
   interactionButton: {
@@ -482,11 +765,8 @@ const styles = StyleSheet.create({
     fontSize: wp(3.2),
     marginLeft: wp(1.5),
   },
-  repostMedia: {
-    width: '100%',
-    height: hp(25),
-    borderRadius: 12,
-    marginTop: hp(1),
+  listContainer: {
+    paddingBottom: hp(2),
   },
   optionsButton: {
     position: 'absolute',
@@ -560,11 +840,5 @@ const styles = StyleSheet.create({
   videoPlaceholderText: {
     color: '#fff',
     fontSize: wp(4),
-  },
-  quotedMedia: {
-    width: wp(40),
-    height: hp(15),
-    borderRadius: 8,
-    marginTop: hp(1),
   },
 });

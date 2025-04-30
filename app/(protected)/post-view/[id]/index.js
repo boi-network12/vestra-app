@@ -1,6 +1,6 @@
-import { View, Text, Image, StyleSheet, TextInput, TouchableOpacity, FlatList, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import React, { useEffect, useState } from 'react';
-import { useLocalSearchParams } from 'expo-router';
+import { View, Text, Image, StyleSheet, TextInput, TouchableOpacity, FlatList, KeyboardAvoidingView, Platform, ScrollView, Animated, Easing } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
 import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-native-responsive-screen';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useTheme } from '../../../../contexts/ThemeContext';
@@ -12,12 +12,104 @@ import { usePostInteraction } from '../../../../contexts/PostInteractionContext'
 import { usePost } from '../../../../contexts/PostContext';
 import { Alert } from 'react-native';
 import ActionModal from '../../../../components/SharedComponents/ActionModal';
+import LinearGradient from 'react-native-linear-gradient';
 
 const VideoPlaceholder = ({ uri }) => (
   <View style={styles.videoContainer}>
     <Text style={styles.videoPlaceholderText}>Video: {uri}</Text>
   </View>
 );
+
+// Skeleton Loading Component
+const PostViewSkeleton = ({ colors }) => {
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.timing(shimmerAnim, {
+        toValue: 1,
+        duration: 1200,
+        easing: Easing.inOut(Easing.ease),
+        useNativeDriver: true,
+      })
+    ).start();
+  }, [shimmerAnim]);
+
+  const shimmerOpacity = shimmerAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [0.2, 0.6, 0.2],
+  });
+
+  const ShimmerPlaceholder = ({ style }) => (
+    <View style={[style, { backgroundColor: colors.skeleton || '#e0e0e0', overflow: 'hidden', borderRadius: 8 }]}>
+      <Animated.View
+        style={{
+          flex: 1,
+          backgroundColor: colors.skeletonHighlight || '#f0f0f0',
+          opacity: shimmerOpacity,
+        }}
+      />
+    </View>
+  );
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <FlatList
+        data={[1, 2, 3]} // Simulate three comments for a richer skeleton
+        renderItem={() => (
+          <View style={[styles.commentContainer, { borderBottomColor: colors.border }]}>
+            <View style={styles.commentHeader}>
+              <ShimmerPlaceholder style={[styles.commentAvatar, { borderRadius: wp(4) }]} />
+              <View style={styles.commentUserInfo}>
+                <ShimmerPlaceholder style={[styles.commentName, { width: wp(35), height: hp(2.2), borderRadius: 4 }]} />
+                <ShimmerPlaceholder style={[styles.commentTime, { width: wp(25), height: hp(1.8), marginTop: hp(0.8), borderRadius: 4 }]} />
+              </View>
+            </View>
+            <ShimmerPlaceholder style={[styles.commentText, { width: wp(85), height: hp(4), marginTop: hp(1.5), borderRadius: 6 }]} />
+          </View>
+        )}
+        keyExtractor={(item) => item.toString()}
+        ListHeaderComponent={
+          <>
+            <View style={[styles.postContainer, { backgroundColor: colors.card, borderRadius: 12, margin: wp(2), elevation: 2 }]}>
+              <View style={styles.postHeader}>
+                <ShimmerPlaceholder style={[styles.avatar, { borderRadius: wp(5) }]} />
+                <View style={styles.userInfo}>
+                  <ShimmerPlaceholder style={[styles.username, { width: wp(40), height: hp(2.5), borderRadius: 4 }]} />
+                  <ShimmerPlaceholder style={[styles.location, { width: wp(30), height: hp(2), marginTop: hp(0.8), borderRadius: 4 }]} />
+                </View>
+                <ShimmerPlaceholder style={[styles.timeAgo, { width: wp(20), height: hp(2), borderRadius: 4 }]} />
+              </View>
+              <ShimmerPlaceholder style={[styles.content, { width: wp(90), height: hp(6), marginVertical: hp(2), borderRadius: 6 }]} />
+              <ShimmerPlaceholder style={[styles.singleImage, { height: hp(25), borderRadius: 12, marginBottom: hp(2) }]} />
+              <View style={[styles.statsContainer, { borderTopColor: colors.border }]}>
+                <ShimmerPlaceholder style={[styles.statText, { width: wp(70), height: hp(2.5), borderRadius: 4 }]} />
+              </View>
+              <View style={[styles.actionBar, { borderTopColor: colors.border, borderBottomColor: colors.border }]}>
+                {[...Array(4)].map((_, index) => (
+                  <View key={index} style={styles.actionButton}>
+                    <ShimmerPlaceholder style={{ width: wp(6), height: wp(6), borderRadius: wp(3) }} />
+                    <ShimmerPlaceholder style={[styles.actionText, { width: wp(12), height: hp(2.2), marginLeft: wp(2), borderRadius: 4 }]} />
+                  </View>
+                ))}
+              </View>
+            </View>
+            <View style={[styles.commentsHeader, { backgroundColor: colors.card, paddingVertical: hp(1.5) }]}>
+              <ShimmerPlaceholder style={[styles.commentsTitle, { width: wp(40), height: hp(2.5), borderRadius: 4 }]} />
+            </View>
+          </>
+        }
+        style={styles.commentsList}
+      />
+      <View style={[styles.commentInputContainer, { backgroundColor: colors.card, borderTopColor: colors.border, paddingVertical: hp(1.5) }]}>
+        <ShimmerPlaceholder style={[styles.commentInputAvatar, { borderRadius: wp(4) }]} />
+        <ShimmerPlaceholder style={[styles.commentInput, { height: hp(6), borderRadius: 20 }]} />
+        <ShimmerPlaceholder style={{ width: wp(6), height: wp(6), borderRadius: wp(3) }} />
+      </View>
+    </View>
+  );
+};
+
 
 export default function PostView() {
   const {
@@ -77,39 +169,81 @@ export default function PostView() {
       const [isPostLiked, setIsPostLiked] = useState(post.isLiked);
       const [currentLikeCount, setCurrentLikeCount] = useState(post.likeCount);
 
-     useEffect(() => {
-      if (id) {
-        getPost(id);
-        fetchComments(id);
-        incrementViewCount(id)
-          .then(() => updatePostLikeStatus(id, post.isLiked, post.likeCount))
-          .catch(err => console.error('Failed to increment view count:', err));
-      }
-    }, [id]);
+      const [followStatuses, setFollowStatuses] = useState({}); 
+
+      useEffect(() => {
+        if (id) {
+          setIsLoading(true);
+          Promise.all([
+            getPost(id),
+            fetchComments(id),
+            incrementViewCount(id),
+          ])
+            .then(() => {
+              updatePostLikeStatus(id, post.isLiked, post.likeCount);
+              setIsLoading(false);
+            })
+            .catch(err => {
+              console.error('Error loading post:', err);
+              setIsLoading(false);
+            });
+        }
+      }, [id]);
   
     // Update isPostLiked when selectedPost changes
     useEffect(() => {
       if (selectedPost && selectedPost._id === id) {
         setIsPostLiked(selectedPost.isLiked);
         setCurrentLikeCount(selectedPost.likeCount);
+        setCurrentCommentCount(selectedPost.commentCount);
+        setCurrentShareCount(selectedPost.shareCount);
+        setCurrentRepostCount(selectedPost.repostCount);
+        setCurrentViewCount(selectedPost.viewCount);
       }
     }, [selectedPost, id]);
+  
 
-    const handleBookmark = async () => {
-      if (!post?._id || !post?.user?._id) return;
-      try {
-        const isBookmarked = post.bookmarks?.includes(user._id);
-        if (isBookmarked) {
-          await removeBookmark(post._id);
-          updatePostBookmark(post._id, false);
-        } else {
-          await bookmarkPost(post._id);
-          updatePostBookmark(post._id, true);
-        }
-      } catch (err) {
-        console.error('Bookmark error:', err);
-        Alert.alert('Error', 'Failed to update bookmark status');
+    const navigateToProfile = (postUser) => {
+      if (!postUser || !postUser._id) {
+        console.error('navigateToProfile: Invalid user object', postUser);
+        return;
       }
+    
+      // Determine if the user is the current user
+      const isCurrentUser = postUser._id === user._id;
+    
+      // Determine follow status (mirroring MessageItem logic)
+      const status = followStatuses[postUser._id]?.status || 'not_following';
+      const isFollowingYou = followStatuses[postUser._id]?.isFollowingYou || false;
+    
+      let followStatus;
+      if (status === 'blocked') {
+        followStatus = 'blocked';
+      } else if (status === 'following') {
+        followStatus = 'following';
+      } else if (isFollowingYou) {
+        followStatus = 'follow_back';
+      } else {
+        followStatus = 'not_following';
+      }
+    
+      // Use the populated postUser object directly, ensuring password is excluded
+      const userData = { ...postUser };
+    
+      // Ensure password is not included (though backend already excludes it)
+      if (userData.password) {
+        delete userData.password;
+      }
+    
+      // Navigate to appropriate route
+      router.push({
+        pathname: isCurrentUser ? 'profile' : 'users-profile',
+        params: {
+          user: JSON.stringify(userData),
+          followStatus,
+          isLiked: isPostLiked ? 'true' : 'false',
+        },
+      });
     };
   
     const handleDelete = async () => {
@@ -239,16 +373,23 @@ export default function PostView() {
     <View style={[styles.commentContainer, { borderBottomColor: colors.border }]}>
       <View style={styles.commentHeader}>
         {item.user.profilePicture ? (
-          <Image source={{ uri: item.user.profilePicture }} style={styles.commentAvatar} />
+          <TouchableOpacity onPress={() => navigateToProfile(item.user)}>
+            <Image source={{ uri: item.user.profilePicture }} style={styles.commentAvatar} />
+          </TouchableOpacity>
         ) : (
-          <View style={[styles.commentAvatarPlaceholder, { backgroundColor: colors.primary }]}>
+          <TouchableOpacity
+            style={[styles.commentAvatarPlaceholder, { backgroundColor: colors.primary }]}
+            onPress={() => navigateToProfile(item.user)}
+          >
             <Text style={styles.commentInitials}>
               {item.user.name ? item.user.name.split(' ').map(n => n[0]).join('').toUpperCase() : 'U'}
             </Text>
-          </View>
+          </TouchableOpacity>
         )}
         <View style={styles.commentUserInfo}>
-          <Text style={[styles.commentName, { color: colors.text }]}>{item.user.name || item.user.username}</Text>
+          <TouchableOpacity onPress={() => navigateToProfile(item.user)}>
+            <Text style={[styles.commentName, { color: colors.text }]}>{item.user.name || item.user.username}</Text>
+          </TouchableOpacity>
           <Text style={[styles.commentTime, { color: colors.subText }]}>
             {moment(item.createdAt).fromNow()}
           </Text>
@@ -261,8 +402,8 @@ export default function PostView() {
   const renderMedia = (mediaItems) => {
     if (!mediaItems || mediaItems.length === 0) return null;
   
-    const images = mediaItems.filter(item => item.type === 'image' || item.url.match(/\.(jpg|jpeg|png|gif)$/i));
-    const videos = mediaItems.filter(item => item.type === 'video' || item.url.match(/\.(mp4|mov)$/i));
+    const images = mediaItems.filter(item => item && (item.type === 'image' || item.url.match(/\.(jpg|jpeg|png|gif)$/i)));
+    const videos = mediaItems.filter(item => item && (item.type === 'video' || item.url.match(/\.(mp4|mov)$/i)));
   
     // Twitter-like image grid logic
     const renderImageGrid = () => {
@@ -348,116 +489,130 @@ export default function PostView() {
         onOptionsPress={() => setModalVisible(true)}
       />
 
-      <FlatList
-        data={comments}
-        renderItem={renderComment}
-        keyExtractor={item => item._id}
-        ListHeaderComponent={
-          <>
-            <View style={[styles.postContainer, { backgroundColor: colors.card }]}>
-              <View style={styles.postHeader}>
-                {profilePicture ? (
-                  <Image source={{ uri: profilePicture }} style={styles.avatar} />
-                ) : (
-                  <View style={[styles.avatarPlaceholder, { backgroundColor: colors.primary }]}>
-                    <Text style={styles.initials}>
-                      {username ? username[0].toUpperCase() : 'U'}
+      {isLoading ? (
+        <PostViewSkeleton colors={colors} />
+      ) : (
+        <>
+          <FlatList
+            data={comments}
+            renderItem={renderComment}
+            keyExtractor={item => item._id}
+            ListHeaderComponent={
+              <>
+                <View style={[styles.postContainer, { backgroundColor: colors.card }]}>
+                  <View style={styles.postHeader}>
+                    {profilePicture ? (
+                      <TouchableOpacity onPress={() => navigateToProfile(post.user)}>
+                        <Image source={{ uri: profilePicture }} style={styles.avatar} />
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity
+                        style={[styles.avatarPlaceholder, { backgroundColor: colors.primary }]}
+                        onPress={() => navigateToProfile(post.user)}
+                      >
+                        <Text style={styles.initials}>
+                          {username ? username[0].toUpperCase() : 'U'}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                    <View style={styles.userInfo}>
+                    <TouchableOpacity onPress={() => navigateToProfile(post.user)}>
+                        <Text style={[styles.username, { color: colors.text }]}>{username || 'Unknown User'}</Text>
+                      </TouchableOpacity>
+                      <Text style={[styles.location, { color: colors.subText }]}>{location || 'Unknown Location'}</Text>
+                    </View>
+                    <Text style={[styles.timeAgo, { color: colors.subText }]}>
+                      {moment(createdAt).fromNow()}
                     </Text>
                   </View>
+
+                  {post.quote && post.quote.user ? (
+                    <View style={[styles.quoteContainer, { borderLeftColor: colors.primary }]}>
+                      <Text style={[styles.quoteLabel, { color: colors.subText }]}>
+                        Quoted from @{post.quote.user.username}
+                      </Text>
+                      <Text style={[styles.content, { color: colors.text }]}>{post.quote.content}</Text>
+                      {renderMedia(post.quote.media || [])}
+                    </View>
+                  ) : repostData && repostData.user ? (
+                    <View style={[styles.repostContainer, { borderLeftColor: colors.primary }]}>
+                      <Text style={[styles.repostLabel, { color: colors.subText }]}>
+                        Reposted from @{repostData.user.username}
+                      </Text>
+                      <Text style={[styles.content, { color: colors.text }]}>{repostData.content}</Text>
+                      {renderMedia(repostData.media)}
+                    </View>
+                  ) : (
+                    <>
+                      <Text style={[styles.content, { color: colors.text }]}>{content}</Text>
+                      {renderMedia(post.media)}
+                    </>
                 )}
-                <View style={styles.userInfo}>
-                  <Text style={[styles.username, { color: colors.text }]}>{username || 'Unknown User'}</Text>
-                  <Text style={[styles.location, { color: colors.subText }]}>{location || 'Unknown Location'}</Text>
+
+                <View style={[styles.statsContainer, { borderTopColor: colors.border }]}>
+                  <Text style={[styles.statText, { color: colors.subText }]}>
+                    {currentLikeCount} likes · {currentCommentCount} comments · {currentShareCount} shares ·{' '}
+                    {currentRepostCount} reposts · {currentViewCount} views
+                  </Text>
                 </View>
-                <Text style={[styles.timeAgo, { color: colors.subText }]}>
-                  {moment(createdAt).fromNow()}
+
+                <View style={[styles.actionBar, { borderTopColor: colors.border, borderBottomColor: colors.border }]}>
+                  <TouchableOpacity style={styles.actionButton} onPress={handleLike}>
+                    <Icon
+                      name={isPostLiked ? 'heart' : 'heart-outline'}
+                      size={wp(5.5)}
+                      color={isPostLiked ? colors.errorText : colors.subText}
+                    />
+                    <Text style={[styles.actionText, { color: colors.subText }]}>Like</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.actionButton}>
+                    <Icon name="chatbubble-outline" size={wp(5)} color={colors.subText} />
+                    <Text style={[styles.actionText, { color: colors.subText }]}>Comment</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.actionButton} onPress={handleRepost}>
+                    <Icon name="repeat-outline" size={wp(5)} color={colors.subText} />
+                    <Text style={[styles.actionText, { color: colors.subText }]}>Repost</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.actionButton} onPress={handleShare}>
+                    <Icon name="share-outline" size={wp(5)} color={colors.subText} />
+                    <Text style={[styles.actionText, { color: colors.subText }]}>Share</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={[styles.commentsHeader, { backgroundColor: colors.card }]}>
+                <Text style={[styles.commentsTitle, { color: colors.text }]}>Comments ({comments.length})</Text>
+              </View>
+            </>
+          }
+            style={styles.commentsList}
+          />
+          <View style={[styles.commentInputContainer, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
+            {user?.profilePicture ? (
+              <Image source={{ uri: user.profilePicture }} style={styles.commentInputAvatar} />
+            ) : (
+              <View style={[styles.commentInputAvatarPlaceholder, { backgroundColor: colors.primary }]}>
+                <Text style={styles.commentInputInitials}>
+                  {user?.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase() : 'U'}
                 </Text>
               </View>
-
-              {post.quote && post.quote.user ? (
-                <View style={[styles.quoteContainer, { borderLeftColor: colors.primary }]}>
-                  <Text style={[styles.quoteLabel, { color: colors.subText }]}>
-                    Quoted from @{post.quote.user.username}
-                  </Text>
-                  <Text style={[styles.content, { color: colors.text }]}>{post.quote.content}</Text>
-                  {renderMedia(post.quote.media)}
-                </View>
-              ) : repostData && repostData.user ? (
-                <View style={[styles.repostContainer, { borderLeftColor: colors.primary }]}>
-                  <Text style={[styles.repostLabel, { color: colors.subText }]}>
-                    Reposted from @{repostData.user.username}
-                  </Text>
-                  <Text style={[styles.content, { color: colors.text }]}>{repostData.content}</Text>
-                  {renderMedia(repostData.media)}
-                </View>
-              ) : (
-                <>
-                  <Text style={[styles.content, { color: colors.text }]}>{content}</Text>
-                  {renderMedia(post.media)}
-                </>
-              )}
-
-              <View style={[styles.statsContainer, { borderTopColor: colors.border }]}>
-                <Text style={[styles.statText, { color: colors.subText }]}>
-                  {currentLikeCount} likes · {currentCommentCount} comments · {currentShareCount} shares ·{' '}
-                  {currentRepostCount} reposts · {currentViewCount} views
-                </Text>
-              </View>
-
-              <View style={[styles.actionBar, { borderTopColor: colors.border, borderBottomColor: colors.border }]}>
-                <TouchableOpacity style={styles.actionButton} onPress={handleLike}>
-                  <Icon
-                    name={isPostLiked ? 'heart' : 'heart-outline'}
-                    size={wp(5.5)}
-                    color={isPostLiked ? colors.errorText : colors.subText}
-                  />
-                  <Text style={[styles.actionText, { color: colors.subText }]}>Like</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.actionButton}>
-                  <Icon name="chatbubble-outline" size={wp(5)} color={colors.subText} />
-                  <Text style={[styles.actionText, { color: colors.subText }]}>Comment</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.actionButton} onPress={handleRepost}>
-                  <Icon name="repeat-outline" size={wp(5)} color={colors.subText} />
-                  <Text style={[styles.actionText, { color: colors.subText }]}>Repost</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.actionButton} onPress={handleShare}>
-                  <Icon name="share-outline" size={wp(5)} color={colors.subText} />
-                  <Text style={[styles.actionText, { color: colors.subText }]}>Share</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={[styles.commentsHeader, { backgroundColor: colors.card }]}>
-              <Text style={[styles.commentsTitle, { color: colors.text }]}>Comments ({comments.length})</Text>
-            </View>
-          </>
-        }
-        style={styles.commentsList}
-      />
-
-      <View style={[styles.commentInputContainer, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
-        {user?.profilePicture ? (
-          <Image source={{ uri: user.profilePicture }} style={styles.commentInputAvatar} />
-        ) : (
-          <View style={[styles.commentInputAvatarPlaceholder, { backgroundColor: colors.primary }]}>
-            <Text style={styles.commentInputInitials}>
-              {user?.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase() : 'U'}
-            </Text>
+            )}
+            <TextInput
+              style={[styles.commentInput, { backgroundColor: colors.inputBg, color: colors.text, borderColor: colors.border }]}
+              placeholder="Write a comment..."
+              placeholderTextColor={colors.placeholder}
+              value={commentText}
+              onChangeText={setCommentText}
+              multiline
+            />
+            <TouchableOpacity onPress={handleAddComment} disabled={!commentText.trim()}>
+              <Icon name="send" size={wp(5)} color={commentText.trim() ? colors.primary : colors.subText} />
+            </TouchableOpacity>
           </View>
-        )}
-        <TextInput
-          style={[styles.commentInput, { backgroundColor: colors.inputBg, color: colors.text, borderColor: colors.border }]}
-          placeholder="Write a comment..."
-          placeholderTextColor={colors.placeholder}
-          value={commentText}
-          onChangeText={setCommentText}
-          multiline
-        />
-        <TouchableOpacity onPress={handleAddComment} disabled={!commentText.trim()}>
-          <Icon name="send" size={wp(5)} color={commentText.trim() ? colors.primary : colors.subText} />
-        </TouchableOpacity>
-      </View>
+        </>
+      )}
+
+      
       <ActionModal
         isVisible={modalVisible}
         onClose={() => setModalVisible(false)}
